@@ -20,7 +20,9 @@ let package = Package(
         .testTarget(
             name: "M14tTouchTests",
             dependencies: ["M14tTouch"],
-            path: "Tests/M14tTouchTests"
+            path: "Tests",
+            exclude: ["GestureReplay/main.swift"],
+            sources: ["M14tTouchTests", "GestureReplay/Checks.swift"]
         )
     ]
 )

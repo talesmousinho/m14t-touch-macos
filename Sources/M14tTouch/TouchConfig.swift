@@ -10,6 +10,9 @@ struct TouchConfig {
     /// Index of the display the M14t is mapped to (`0` is the main display).
     var displayIndex: Int = 1
 
+    /// Stable display identity; takes precedence over the initial index.
+    var displayUUID: String?
+
     /// Mirror the horizontal axis (use if touch is flipped left↔right).
     var invertX: Bool = false
 
@@ -18,6 +21,9 @@ struct TouchConfig {
 
     /// Print every raw HID event and resulting action. Useful for calibration.
     var debugMode: Bool = false
+
+    /// Opt in to Gen 1 report-based two-finger scrolling.
+    var twoFingerScroll: Bool = false
 
     /// Ask macOS to show the Accessibility permission prompt when access is missing.
     var promptForAccessibility: Bool = true

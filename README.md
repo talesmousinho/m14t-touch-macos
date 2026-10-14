@@ -13,7 +13,7 @@ is commercial drivers that costs **~$171** for a single license. This is
 a focused open-source alternative that does one thing well: **turns a finger
 touch into a mouse click**, entirely in user space using Apple's public APIs.
 
-No kernel extension. No system extension. No paid license. ~600 lines of Swift.
+No kernel extension. No system extension. No paid license.
 
 ---
 
@@ -56,7 +56,8 @@ The driver reads the HID digitizer stream and converts it to cursor events:
 | Finger up | `leftMouseUp` |
 
 A down-then-up without movement is a **click**; a down-move-up is a **drag**.
-That's the whole contract — deliberately simple and reliable.
+This remains the default. Add `--two-finger-scroll` to enable the Gen 1 gesture
+mode described below.
 
 ---
 
@@ -70,7 +71,9 @@ matters, unit-testable:
 | `main.swift` | Entry point: dispatch, permissions, run loop |
 | `ArgumentParser.swift` | Pure CLI parsing → `TouchConfig` |
 | `TouchConfig.swift` | Runtime options value type |
-| `HIDTouchDriver.swift` | IOKit orchestration + touch state machine |
+| `HIDTouchDriver.swift` | IOKit orchestration, calibration and event dispatch |
+| `M14tReport.swift` | Gen 1 report decoding with separate contact IDs |
+| `TouchGestures.swift` | Pure tap, drag and two-finger scroll state machine |
 | `CoordinateMapper.swift` | **Pure** raw→screen math (fully tested) |
 | `Calibration.swift` | Calibration model + JSON persistence |
 | `DisplayResolver.swift` | Display enumeration and selection |
@@ -123,6 +126,87 @@ silently via LaunchAgent, discards normal output, and writes errors to
 
 ---
 
+## Keeping touch on the M14t after display changes
+
+`--display N` selects a display once, then tracks its UUID and current bounds.
+Moving displays in System Settings, changing the main display, or changing
+resolution no longer redirects touch to another monitor. Active gestures are
+cancelled on a layout change; lift all fingers before starting again. Input
+pauses while the selected display is disconnected and resumes when it returns.
+
+The installer saves the selected display's UUID in the login agent, so selection
+also survives restarts and changes to display ordering. When upgrading an old
+index-based agent, run `--list` first, then reinstall using the M14t's **current**
+index (for example, if it is now display 0):
+
+```sh
+DISPLAY_INDEX=0 ./install.sh --autostart --two-finger-scroll --skip-calibration
+```
+
+For manual launches, use `--display-uuid UUID` with the identity printed by
+`--list`. It takes precedence over `--display`. An unavailable UUID waits for that
+monitor; an invalid index exits instead of falling back to the main display.
+`--print-display-uuid --display N` prints only the selected UUID for scripts.
+
+## Two-finger scrolling (Gen 1, opt-in)
+
+For the original 1920×1080 M14t with USB controller `2d1f:524c`, set the monitor's
+OSD **Touch Support** to **Android/Chrome** and turn **Auto rotation** off while
+calibrating. The report parser is specific to this hardware and mode; Gen 2 and
+other digitizers have not been validated.
+
+```bash
+# Use the saved calibration; add --debug to inspect contacts and gestures.
+.build/release/m14ttouch --display 1 --two-finger-scroll
+
+# Keep calibration and enable this mode at login.
+./install.sh --autostart --two-finger-scroll --skip-calibration
+```
+
+| Gesture | Behavior |
+|---|---|
+| One-finger tap | Left click |
+| One-finger hold and move | Left drag after a 120 ms initial gesture delay |
+| Two fingers moving together | Vertical or horizontal pixel scrolling |
+| Lift one finger after scrolling | Suppress further input until both fingers lift |
+| Three or more fingers | Ignore until all fingers lift |
+
+Place both fingers together to scroll without an initial click. If a second
+finger arrives after a drag has already begun, the driver releases that drag
+before scrolling. Content follows finger motion, with scroll events anchored to
+the gesture's starting point. Lift both fingers before beginning another gesture.
+Pinch zoom, two-finger right-click, pen input and momentum are not supported.
+
+This mode decodes complete 40-byte `0x0c` reports containing five contact slots,
+using each contact's ID and confidence bit. It ignores secondary digitizer and
+pen reports, and releases any held mouse button on disconnection or shutdown.
+
+Run only one copy at a time. Before starting a manual debug session, stop the
+login agent:
+
+```bash
+launchctl bootout "gui/$(id -u)/com.talesfonseca.m14ttouch"
+```
+
+Stop the manual process before restarting the login agent:
+
+```bash
+launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/com.talesfonseca.m14ttouch.plist"
+```
+
+To return to default single-touch behavior while retaining calibration:
+
+```bash
+./install.sh --autostart --skip-calibration
+```
+
+`--skip-calibration` requires an existing, nonempty `~/.m14ttouch.json`. Omit it
+for the first installation. With `--autostart`, the installer stops the old login
+agent before updating the binary or starting calibration, avoiding competing
+input processes.
+
+---
+
 ## Permissions
 
 macOS gates the two things this driver needs. Grant both once:
@@ -142,6 +226,9 @@ launchctl kickstart -k "gui/$(id -u)/com.talesfonseca.m14ttouch"
 ```
 
 The driver prompts for Accessibility automatically on first interactive run.
+On the tested macOS 27 system, this permission appears as **Device Control and
+Data Access**. After rebuilding, a stale entry can remain enabled but still deny
+access; remove it and re-add the installed binary before restarting the agent.
 
 ---
 
@@ -174,13 +261,16 @@ m14ttouch --display 1 --invert-y              # fix a flipped axis
 ## All options
 
 ```
---display N          Display index the M14t is mapped to (default: 1)
+--display N          Initial display index (default: 1); then track UUID
+--display-uuid UUID  Stable display identity; overrides --display
+--print-display-uuid Print selected display UUID and exit
 --auto-calibrate     Learn the touch range, then persist it
 --invert-x           Mirror the horizontal axis
 --invert-y           Mirror the vertical axis
 --x-min / --x-max    Manual raw X bounds (override saved calibration)
 --y-min / --y-max    Manual raw Y bounds
 --debug              Print every HID event and resulting action
+--two-finger-scroll  Enable Gen 1 two-finger scrolling
 --no-accessibility-prompt
                      Suppress the Accessibility prompt for LaunchAgents
 --list               List connected displays and exit
@@ -197,7 +287,18 @@ swift test
 ```
 
 Covers the coordinate mapping (corners, center, clamping, axis inversion,
-multi-display offsets, degenerate input) and CLI parsing.
+multi-display offsets, degenerate input), CLI parsing, report decoding and gesture
+transitions. The gesture replay scenarios are shared with a dependency-free
+runner for Command Line Tools installations that lack XCTest:
+
+```bash
+bash test-gestures.sh
+```
+
+Replay coverage includes stable display selection, rearrangement/resizing, reconnect
+recovery, tap/drag timing, contact IDs and slot order, both scroll
+axes, finger lifts, malformed reports, palm filtering, and cancellation. Real
+hardware validation is still needed to verify event delivery and app behavior.
 
 ---
 
@@ -213,21 +314,20 @@ multi-display offsets, degenerate input) and CLI parsing.
 | Accessibility prompt repeats | Re-run `./install.sh --autostart`; the LaunchAgent should use `--no-accessibility-prompt` |
 | Autostart installs but driver is not running | Remove/re-add **Accessibility** for `~/.local/bin/m14ttouch`, then run `launchctl kickstart -k "gui/$(id -u)/com.talesfonseca.m14ttouch"` |
 | Works in Terminal, stops after closing it | Use `./install.sh --autostart` |
+| Cursor jumps or windows flicker | Stop extra manual copies; run only one driver instance |
 
 ---
 
 ## Scope & roadmap
 
-This release is intentionally **single-touch only** — one contact, one cursor —
-because that's the case that's robust across apps. Multi-finger gestures
-(two-finger scroll, right-click) are a natural next step but require frame-based
-contact tracking and are out of scope for v1.
+Single-touch click/drag is the default. Gen 1 two-finger scrolling is available
+as an opt-in mode; other multi-finger gestures remain out of scope.
 
 - [x] Single-touch → click / drag
 - [x] Auto-calibration with persistence
 - [x] Multi-display support, axis inversion
 - [x] Unit-tested coordinate mapping
-- [ ] Two-finger scroll
+- [x] Opt-in two-finger scroll (Gen 1)
 - [ ] Two-finger tap → right-click
 - [ ] Menu-bar status app
 

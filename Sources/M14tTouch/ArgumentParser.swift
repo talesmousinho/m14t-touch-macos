@@ -11,6 +11,7 @@ enum ArgumentParser {
     enum Outcome {
         case run(TouchConfig)
         case listDisplays
+        case printDisplayUUID(TouchConfig)
         case resetCalibration
         case help
         case error(String)
@@ -18,6 +19,7 @@ enum ArgumentParser {
 
     static func parse(_ arguments: [String]) -> Outcome {
         var config = TouchConfig()
+        var printDisplayUUID = false
         var iterator = arguments.makeIterator()
 
         func nextDouble() -> Double? {
@@ -37,9 +39,17 @@ enum ArgumentParser {
                 }
                 config.displayIndex = idx
 
+            case "--display-uuid":
+                guard let raw = iterator.next(), let uuid = UUID(uuidString: raw) else {
+                    return .error("--display-uuid requires a UUID from --list")
+                }
+                config.displayUUID = uuid.uuidString
+            case "--print-display-uuid": printDisplayUUID = true
+
             case "--invert-x":      config.invertX = true
             case "--invert-y":      config.invertY = true
             case "--debug":         config.debugMode = true
+            case "--two-finger-scroll": config.twoFingerScroll = true
             case "--auto-calibrate": config.autoCalibrate = true
             case "--no-accessibility-prompt": config.promptForAccessibility = false
 
@@ -53,7 +63,7 @@ enum ArgumentParser {
             }
         }
 
-        return .run(config)
+        return printDisplayUUID ? .printDisplayUUID(config) : .run(config)
     }
 
     static let usageText = """
@@ -64,7 +74,9 @@ enum ArgumentParser {
       m14ttouch [OPTIONS]
 
     OPTIONS:
-      --display N          Display index the M14t is mapped to (default: 1)
+      --display N          Initial display index (default: 1); tracked by UUID thereafter
+      --display-uuid UUID  Stable display identity; overrides --display
+      --print-display-uuid Print selected display UUID and exit
       --auto-calibrate     Learn the touch range as you touch all four corners,
                            then save it for future runs
       --invert-x           Mirror the horizontal axis
@@ -74,6 +86,7 @@ enum ArgumentParser {
       --y-min N            Manual raw Y minimum
       --y-max N            Manual raw Y maximum
       --debug              Print every HID event and resulting action
+      --two-finger-scroll  Gen 1: one finger taps/drags, two fingers scroll
       --no-accessibility-prompt
                Do not show the Accessibility prompt; useful for LaunchAgents
       --list               List connected displays and exit
