@@ -1,191 +1,89 @@
-# Lenovo ThinkVision M14t display touch driver for macOS
+# Lenovo ThinkVision M14t Multi-Touch & Trackpad Driver for macOS (2.0)
 
-> A tiny, dependency-free macOS driver that brings touchscreen input to the
-> **Lenovo ThinkVision M14t** when connected to a Mac over USB-C.
+> A lightweight, zero-dependency macOS user-space driver that brings a full **tablet + MacBook trackpad gesture experience** to the **Lenovo ThinkVision M14t** over USB-C.
 
 [![Platform](https://img.shields.io/badge/platform-macOS%2013%2B-blue)](https://www.apple.com/macos/)
 [![Swift](https://img.shields.io/badge/swift-5.9-orange)](https://swift.org)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-macOS recognises the M14t as an external display but silently ignores its USB
-HID touch interface — so the screen works, but touch does nothing. The usual fix
-is commercial drivers that costs **~$171** for a single license. This is
-a focused open-source alternative that does one thing well: **turns a finger
-touch into a mouse click**, entirely in user space using Apple's public APIs.
+macOS recognizes the M14t video signal via DisplayPort Alt-Mode, but its built-in Wacom multi-touch digitizer (`VID 0x2D1F`, `PID 0x524C`) either gets ignored or gets mapped by `WindowServer` onto the wrong display (your MacBook's internal screen).
 
-No kernel extension. No system extension. No paid license. ~600 lines of Swift.
-
----
-
-## How it works
-
-The M14t multiplexes two independent interfaces over the single USB-C cable:
-
-```
-USB-C cable
-├── DisplayPort Alt Mode  →  video    →  handled natively by macOS ✅
-└── USB HID Digitizer      →  touch    →  ignored by macOS, handled here ✅
-```
-
-The driver reads the HID digitizer stream and converts it to cursor events:
-
-```
- ┌──────────────┐   raw X / Y / TipSwitch   ┌────────────────────┐
- │  M14t panel  │ ─────────────────────────▶│   HIDTouchDriver   │
- └──────────────┘     (IOHIDManager)         └─────────┬──────────┘
-                                                       │
-                          calibrated raw → screen px   │
-                                            ┌──────────▼──────────┐
-                                            │  CoordinateMapper    │  (pure, tested)
-                                            └──────────┬──────────┘
-                                                       │  CGPoint
-                                            ┌──────────▼──────────┐
-                                            │    MouseEmitter      │
-                                            └──────────┬──────────┘
-                                                       │  CGEvent
-                                                       ▼
-                                              macOS cursor / click
-```
-
-**Touch model** — a single contact maps directly to the left mouse button:
-
-| Gesture | macOS event |
-|---|---|
-| Finger down | `leftMouseDown` |
-| Finger moves while down | `leftMouseDragged` |
-| Finger up | `leftMouseUp` |
-
-A down-then-up without movement is a **click**; a down-move-up is a **drag**.
-That's the whole contract — deliberately simple and reliable.
+**M14tTouch 2.0** solves both problems from scratch:
+1. **Locks exclusively to the M14t display** by auto-detecting its Lenovo EDID (`0x30AE:0x62A3` / `"M14t"`), listening to live display hotplug/rotation events, switching the Wacom sensor into native multi-touch mode (`Feature Report 0x0E`), and blocking `WindowServer` from hijacking touches onto the main screen.
+2. **Decodes full 5-finger atomic HID packets (`ReportID 0x0C`) and Active Stylus packets (`ReportID 0x06`)** using the panel's factory coordinate grid (`12372 × 6960` touch, `30931 × 17399` pen) — **no manual corner calibration required**.
+3. **Full Tablet & MacBook Trackpad Gestures**:
+   - **1-Finger Tap / Double-Tap / Triple-Tap**: Left click, double-click to select word, triple-click to select line/paragraph.
+   - **1-Finger Drag**: Natural **text selection**, window dragging, and slider control (or optional *iPad Scroll Mode* where 1 finger scrolls and hold-then-drag selects text).
+   - **1-Finger Long Press (~0.5s)**: Right-click (context menu).
+   - **2-Finger Tap**: Right-click (secondary click).
+   - **2-Finger Pan**: Smooth pixel-accurate 2D trackpad scrolling with inertial momentum.
+   - **2-Finger Pinch**: Native macOS trackpad **Pinch-to-Zoom** (`NSEvent.EventType.magnify`) in Safari, Chrome, Preview, Maps, Figma, Xcode, etc.
+   - **3 / 4-Finger Swipe Left / Right**: Switch between macOS **Desktops / Full-Screen Spaces**.
+   - **3 / 4-Finger Swipe Up**: **Mission Control**.
+   - **3 / 4-Finger Swipe Down**: **App Exposé**.
+   - **Active Pen / Stylus**: Hover cursor tracking, 4096-level pressure drawing, and barrel-button right-click.
 
 ---
 
-## Project layout
-
-The code is split by responsibility so each piece is small and, where it
-matters, unit-testable:
-
-| File | Responsibility |
-|---|---|
-| `main.swift` | Entry point: dispatch, permissions, run loop |
-| `ArgumentParser.swift` | Pure CLI parsing → `TouchConfig` |
-| `TouchConfig.swift` | Runtime options value type |
-| `HIDTouchDriver.swift` | IOKit orchestration + touch state machine |
-| `CoordinateMapper.swift` | **Pure** raw→screen math (fully tested) |
-| `Calibration.swift` | Calibration model + JSON persistence |
-| `DisplayResolver.swift` | Display enumeration and selection |
-| `MouseEmitter.swift` | `CGEvent` posting |
-| `HIDUsage.swift` | Named HID usage constants |
-
-The mapping math and argument parsing have no hardware or global-state
-dependencies, so they're covered by `swift test` without a connected device.
-
----
-
-## Requirements
-
-- macOS 13 (Ventura) or later — Intel or Apple Silicon
-- Xcode Command Line Tools: `xcode-select --install`
-- The M14t connected via a **data-capable** USB-C cable
-
----
-
-## Quick start
+## Quick Start
 
 ```bash
-git clone https://github.com/talesmousinho/m14t-touch-macos.git
-cd m14t-touch-macos
+# Build, install to ~/.local/bin/m14ttouch, and enable background LaunchAgent at login:
+./install.sh --autostart
+```
 
-# 1. Build
+Or run manually from the terminal:
+
+```bash
 swift build -c release
-
-# 2. Find which display index is your M14t
-.build/release/m14ttouch --list
-
-# 3. Calibrate once — touch all four corners firmly
-.build/release/m14ttouch --display 1 --auto-calibrate
-
-# 4. From now on, just run (calibration is remembered)
-.build/release/m14ttouch --display 1
+.build/release/m14ttouch --list   # Verify M14t EDID detection
+.build/release/m14ttouch          # Run with automatic M14t display matching
 ```
 
-Or use the helper script, which builds and runs calibration interactively in the
-terminal. Touch all four corners, then press Enter; the installer stops
-calibration and returns the prompt. With `--autostart`, the driver then runs
-silently via LaunchAgent, discards normal output, and writes errors to
-`/tmp/m14ttouch.err.log`. The script installs the driver at
-`~/.local/bin/m14ttouch` so macOS permissions keep pointing at a stable path:
+### Standalone Settings App & Installer Package
 
 ```bash
-./install.sh              # build + calibrate
-./install.sh --autostart  # build + calibrate + run automatically at login
+Scripts/build-app.sh  # creates .build/artifacts/M14tTouch.app
+Scripts/build-pkg.sh  # creates .build/artifacts/M14tTouch.pkg
 ```
 
 ---
 
 ## Permissions
 
-macOS gates the two things this driver needs. Grant both once:
+Grant both permissions once in **System Settings → Privacy & Security**:
 
-| Permission | Why | Where |
+| Permission | Purpose | Binary to Authorize |
 |---|---|---|
-| **Input Monitoring** | Read raw HID touch data | System Settings → Privacy & Security → Input Monitoring |
-| **Accessibility** | Post cursor / click events | System Settings → Privacy & Security → Accessibility |
+| **Input Monitoring** | Read raw Wacom multi-touch & stylus HID reports | `~/.local/bin/m14ttouch` (or your Terminal app) |
+| **Accessibility** | Synthesize clicks, text selection, pinch-zoom, and Desktop switches | `~/.local/bin/m14ttouch` (or your Terminal app) |
 
-Add your terminal app for interactive runs, and add `~/.local/bin/m14ttouch` for
-LaunchAgent/autostart runs. If `m14ttouch` is already listed but autostart still
-fails, remove that entry and add `~/.local/bin/m14ttouch` again, then restart the
-existing LaunchAgent with:
+If you rebuild and overwrite `~/.local/bin/m14ttouch`, toggle its entry off and back on in **Accessibility** and **Input Monitoring**, then restart the LaunchAgent:
 
 ```bash
 launchctl kickstart -k "gui/$(id -u)/com.talesfonseca.m14ttouch"
 ```
 
-The driver prompts for Accessibility automatically on first interactive run.
-
 ---
 
-## Calibration
-
-The M14t's HID descriptor advertises a `0–32767` coordinate range but only
-emits values in a much narrower band — so a naive mapping puts touches in the
-wrong place. `--auto-calibrate` solves this by widening its known range as you
-touch, then saving the result to `~/.m14ttouch.json`:
-
-```json
-{
-  "xMax" : 12371,
-  "xMin" : 1,
-  "yMax" : 6959,
-  "yMin" : 1
-}
-```
-
-Subsequent launches load this automatically. If something changes:
-
-```bash
-m14ttouch --reset-calibration                 # wipe and start over
-m14ttouch --display 1 --x-min 1 --x-max 12371 --y-min 1 --y-max 6959  # set by hand
-m14ttouch --display 1 --invert-y              # fix a flipped axis
-```
-
----
-
-## All options
+## CLI Options
 
 ```
---display N          Display index the M14t is mapped to (default: 1)
---auto-calibrate     Learn the touch range, then persist it
---invert-x           Mirror the horizontal axis
---invert-y           Mirror the vertical axis
---x-min / --x-max    Manual raw X bounds (override saved calibration)
---y-min / --y-max    Manual raw Y bounds
---debug              Print every HID event and resulting action
---no-accessibility-prompt
-                     Suppress the Accessibility prompt for LaunchAgents
---list               List connected displays and exit
---reset-calibration  Delete saved calibration and exit
---help, -h           Show help
+--display N               Fallback display index if M14t EDID is not found (default: 1)
+--no-auto-display         Disable automatic M14t EDID/name detection and force --display N
+--mode select|scroll      1-finger drag mode: 'select' (default, text selection & window drag)
+                          or 'scroll' (iPad-style 1-finger scroll, hold-then-drag to select)
+--no-natural-scroll       Invert 2-finger scroll direction
+--no-natural-spaces       Invert 3/4-finger Desktop swipe direction
+--no-pinch-zoom           Disable 2-finger pinch-to-zoom
+--no-three-finger         Disable 3/4-finger Desktop & Mission Control swipes
+--no-long-press           Disable 1-finger long-press right-click
+--invert-x / --invert-y   Mirror horizontal or vertical axis
+--auto-calibrate          Learn custom raw touch bounds by touching all four corners
+--reset-calibration       Delete saved custom calibration and restore 12372×6960 factory bounds
+--debug                   Print HID frames and recognized gestures
+--list                    List connected displays and exit
+--help, -h                Show help
 ```
 
 ---
@@ -196,50 +94,4 @@ m14ttouch --display 1 --invert-y              # fix a flipped axis
 swift test
 ```
 
-Covers the coordinate mapping (corners, center, clamping, axis inversion,
-multi-display offsets, degenerate input) and CLI parsing.
-
----
-
-## Troubleshooting
-
-| Symptom | Fix |
-|---|---|
-| No device detected | Replug USB-C; confirm the cable carries data, not just power; try `--debug` |
-| Touch offset / wrong place | Re-run `--auto-calibrate` and touch all four corners |
-| Vertically/horizontally flipped | Add `--invert-y` and/or `--invert-x` |
-| Cursor doesn't move at all | Grant **Accessibility** permission |
-| `--debug` shows nothing | Grant **Input Monitoring** permission |
-| Accessibility prompt repeats | Re-run `./install.sh --autostart`; the LaunchAgent should use `--no-accessibility-prompt` |
-| Autostart installs but driver is not running | Remove/re-add **Accessibility** for `~/.local/bin/m14ttouch`, then run `launchctl kickstart -k "gui/$(id -u)/com.talesfonseca.m14ttouch"` |
-| Works in Terminal, stops after closing it | Use `./install.sh --autostart` |
-
----
-
-## Scope & roadmap
-
-This release is intentionally **single-touch only** — one contact, one cursor —
-because that's the case that's robust across apps. Multi-finger gestures
-(two-finger scroll, right-click) are a natural next step but require frame-based
-contact tracking and are out of scope for v1.
-
-- [x] Single-touch → click / drag
-- [x] Auto-calibration with persistence
-- [x] Multi-display support, axis inversion
-- [x] Unit-tested coordinate mapping
-- [ ] Two-finger scroll
-- [ ] Two-finger tap → right-click
-- [ ] Menu-bar status app
-
----
-
-## Why this exists
-
-Built to avoid a $171 license for a feature that's really just "read HID, post
-CGEvent." It's also a compact example of bridging a raw USB HID device to the
-macOS event system in pure Swift — calibration, coordinate mapping, IOKit
-callbacks, and synthetic input, with the tricky math isolated and tested.
-
-## License
-
-[MIT](LICENSE) — do whatever you want with it.
+Covers binary decoding of Wacom `0x0C` multi-touch and `0x06` stylus packets, multi-display coordinate mapping with rotation, and the 1/2/3/4-finger `GestureEngine` state machine.

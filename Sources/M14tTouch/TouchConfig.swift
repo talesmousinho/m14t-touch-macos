@@ -1,47 +1,99 @@
 import Foundation
 
-/// Runtime configuration for the touch driver.
-///
-/// Populated from command-line arguments in `main.swift`. Kept as a plain
-/// value type so it is trivial to construct in tests and pass around without
-/// hidden state.
-struct TouchConfig {
+/// How single-finger movement on the touchscreen is interpreted.
+public enum OneFingerMode: String, Codable, CaseIterable, Equatable, Sendable {
+    /// Moving 1 finger performs a standard left-mouse drag (selects text, moves windows, drags sliders).
+    /// 2-finger pan scrolls content.
+    case selectAndDrag = "select"
+    /// Moving 1 finger immediately scrolls content like an iPad; holding briefly (~240ms) then dragging selects text.
+    case scrollAndHoldToSelect = "scroll"
+}
 
-    /// Index of the display the M14t is mapped to (`0` is the main display).
-    var displayIndex: Int = 1
+/// Runtime configuration for the M14t touch & gesture driver.
+public struct TouchConfig: Equatable, Sendable {
 
-    /// Mirror the horizontal axis (use if touch is flipped left↔right).
-    var invertX: Bool = false
+    public var displayIndex: Int
+    public var autoDetectM14tDisplay: Bool
+    public var invertX: Bool
+    public var invertY: Bool
+    public var debugMode: Bool
+    public var promptForAccessibility: Bool
+    public var dragThreshold: Double
+    public var autoCalibrate: Bool
 
-    /// Mirror the vertical axis (use if touch is flipped top↔bottom).
-    var invertY: Bool = false
+    // Tablet & Trackpad Gesture Settings
+    public var oneFingerMode: OneFingerMode
+    public var tapToClick: Bool
+    public var longPressRightClick: Bool
+    public var longPressDuration: Double
+    public var twoFingerRightClick: Bool
+    public var twoFingerScroll: Bool
+    public var naturalScrolling: Bool
+    public var scrollSensitivity: Double
+    public var pinchToZoom: Bool
+    public var threeFingerSwipes: Bool
+    public var naturalSpacesSwipe: Bool
+    public var stylusEnabled: Bool
 
-    /// Print every raw HID event and resulting action. Useful for calibration.
-    var debugMode: Bool = false
+    // Manual calibration overrides
+    public var manualXMin: Double?
+    public var manualXMax: Double?
+    public var manualYMin: Double?
+    public var manualYMax: Double?
 
-    /// Ask macOS to show the Accessibility permission prompt when access is missing.
-    var promptForAccessibility: Bool = true
+    public init(
+        displayIndex: Int = 1,
+        autoDetectM14tDisplay: Bool = true,
+        invertX: Bool = false,
+        invertY: Bool = false,
+        debugMode: Bool = false,
+        promptForAccessibility: Bool = true,
+        dragThreshold: Double = 4.0,
+        autoCalibrate: Bool = false,
+        oneFingerMode: OneFingerMode = .selectAndDrag,
+        tapToClick: Bool = true,
+        longPressRightClick: Bool = false,
+        longPressDuration: Double = 0.48,
+        twoFingerRightClick: Bool = true,
+        twoFingerScroll: Bool = true,
+        naturalScrolling: Bool = true,
+        scrollSensitivity: Double = 1.25,
+        pinchToZoom: Bool = true,
+        threeFingerSwipes: Bool = true,
+        naturalSpacesSwipe: Bool = true,
+        stylusEnabled: Bool = true,
+        manualXMin: Double? = nil,
+        manualXMax: Double? = nil,
+        manualYMin: Double? = nil,
+        manualYMax: Double? = nil
+    ) {
+        self.displayIndex = displayIndex
+        self.autoDetectM14tDisplay = autoDetectM14tDisplay
+        self.invertX = invertX
+        self.invertY = invertY
+        self.debugMode = debugMode
+        self.promptForAccessibility = promptForAccessibility
+        self.dragThreshold = dragThreshold
+        self.autoCalibrate = autoCalibrate
+        self.oneFingerMode = oneFingerMode
+        self.tapToClick = tapToClick
+        self.longPressRightClick = longPressRightClick
+        self.longPressDuration = longPressDuration
+        self.twoFingerRightClick = twoFingerRightClick
+        self.twoFingerScroll = twoFingerScroll
+        self.naturalScrolling = naturalScrolling
+        self.scrollSensitivity = scrollSensitivity
+        self.pinchToZoom = pinchToZoom
+        self.threeFingerSwipes = threeFingerSwipes
+        self.naturalSpacesSwipe = naturalSpacesSwipe
+        self.stylusEnabled = stylusEnabled
+        self.manualXMin = manualXMin
+        self.manualXMax = manualXMax
+        self.manualYMin = manualYMin
+        self.manualYMax = manualYMax
+    }
 
-    /// Minimum movement, in screen pixels, before a finger-down is treated as a
-    /// drag rather than a stationary press. Filters out jitter so a tap stays a
-    /// clean click.
-    var dragThreshold: Double = 1.5
-
-    /// When `true`, the driver widens its coordinate range as it observes touch
-    /// values, then persists the result. Touch all four corners once to calibrate.
-    var autoCalibrate: Bool = false
-
-    // MARK: Manual calibration overrides
-
-    /// Explicit raw coordinate bounds. When set, these win over both the HID
-    /// descriptor values and any persisted calibration.
-    var manualXMin: Double?
-    var manualXMax: Double?
-    var manualYMin: Double?
-    var manualYMax: Double?
-
-    /// `true` when the user supplied any manual bound on the command line.
-    var hasManualCalibration: Bool {
+    public var hasManualCalibration: Bool {
         manualXMin != nil || manualXMax != nil || manualYMin != nil || manualYMax != nil
     }
 }

@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 #
-# install.sh — build m14ttouch, calibrate, and optionally register a login launch agent.
+# install.sh — build m14ttouch 2.0, install to ~/.local/bin/m14ttouch, and optionally register LaunchAgent.
 #
 # Usage:
-#   ./install.sh              # build release binary and calibrate
-#   ./install.sh --autostart  # build, calibrate, and install a LaunchAgent
+#   ./install.sh              # build and install release binary (uses factory 12372×6960 M14t calibration)
+#   ./install.sh --autostart  # build, install, and enable LaunchAgent at login
+#   ./install.sh --calibrate  # also run interactive 4-corner custom calibration
 #
 set -euo pipefail
 
@@ -14,6 +15,7 @@ PLIST="$HOME/Library/LaunchAgents/${LABEL}.plist"
 INSTALL_DIR="$HOME/.local/bin"
 INSTALL_BINARY="$INSTALL_DIR/m14ttouch"
 AUTOSTART=false
+CALIBRATE=false
 BINARY_UPDATED=false
 
 if ! [[ "$DISPLAY_INDEX" =~ ^[0-9]+$ ]]; then
@@ -24,10 +26,9 @@ fi
 usage() {
     cat <<EOF
 Usage:
-  ./install.sh              Build and calibrate display index ${DISPLAY_INDEX}
-  ./install.sh --autostart  Build, calibrate, and run automatically at login
-
-Set DISPLAY_INDEX=N to target a different display.
+  ./install.sh              Build and install m14ttouch 2.0 (auto-detects M14t display & factory bounds)
+  ./install.sh --autostart  Build, install, and run automatically at login via LaunchAgent
+  ./install.sh --calibrate  Run interactive 4-corner calibration after building
 EOF
 }
 
@@ -35,6 +36,9 @@ for arg in "$@"; do
     case "$arg" in
         --autostart)
             AUTOSTART=true
+            ;;
+        --calibrate)
+            CALIBRATE=true
             ;;
         --help|-h)
             usage
@@ -80,9 +84,8 @@ trap 'cleanup_calibration; exit 143' TERM
 
 calibrate() {
     echo ""
-    echo "🎯 Calibrating display index ${DISPLAY_INDEX}…"
+    echo "🎯 Calibrating M14t touch panel…"
     echo "   Touch all four corners firmly. When the cursor mapping looks right, press Enter here."
-    echo "   If macOS asks for Accessibility or Input Monitoring, grant it and rerun this installer."
     echo ""
 
     "$BINARY" --display "$DISPLAY_INDEX" --auto-calibrate </dev/null &
@@ -94,7 +97,7 @@ calibrate() {
     echo "✅ Calibration stopped. Saved calibration: $HOME/.m14ttouch.json"
 }
 
-echo "🔨 Building release binary…"
+echo "🔨 Building m14ttouch 2.0 release binary…"
 swift build -c release
 
 BUILD_BINARY="$(pwd)/.build/release/m14ttouch"
@@ -109,10 +112,12 @@ fi
 BINARY="$INSTALL_BINARY"
 echo "✅ Installed: $BINARY"
 
-calibrate
+if [[ "$CALIBRATE" == true ]]; then
+    calibrate
+fi
 
 if [[ "$AUTOSTART" == true ]]; then
-    echo "📝 Installing LaunchAgent for display index ${DISPLAY_INDEX}…"
+    echo "📝 Installing LaunchAgent…"
     mkdir -p "$HOME/Library/LaunchAgents"
     cat > "$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -140,7 +145,7 @@ if [[ "$AUTOSTART" == true ]]; then
     <key>StandardErrorPath</key>
     <string>/tmp/m14ttouch.err.log</string>
     <key>StandardOutPath</key>
-    <string>/dev/null</string>
+    <string>/tmp/m14ttouch.out.log</string>
 </dict>
 </plist>
 EOF
@@ -148,17 +153,14 @@ EOF
     launchctl bootout "gui/$(id -u)" "$PLIST" 2>/dev/null || true
     launchctl bootstrap "gui/$(id -u)" "$PLIST"
     launchctl kickstart -k "gui/$(id -u)/$LABEL" 2>/dev/null || true
-    echo "✅ Autostart enabled. Background stdout is discarded; errors: /tmp/m14ttouch.err.log"
+    echo "✅ Autostart enabled (logs: /tmp/m14ttouch.out.log, /tmp/m14ttouch.err.log)"
     if [[ "$BINARY_UPDATED" == true ]]; then
-        echo "   The installed binary was updated; macOS may require re-adding Accessibility for: $BINARY"
+        echo "   Note: If cursor movement is blocked after updating the binary, toggle Accessibility & Input Monitoring off/on for: $BINARY"
     fi
-    echo "   If it does not stay running, remove any old m14ttouch Accessibility entry, add: $BINARY"
-    echo "   Then restart it without rebuilding: launchctl kickstart -k gui/$(id -u)/$LABEL"
-    echo "   To disable: launchctl bootout gui/$(id -u) $PLIST && rm $PLIST"
 else
     echo ""
     echo "Run it with:"
-    echo "  $BINARY --display ${DISPLAY_INDEX}"
+    echo "  $BINARY"
     echo ""
     echo "Or enable autostart with:"
     echo "  ./install.sh --autostart"

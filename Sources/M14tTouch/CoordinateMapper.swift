@@ -1,46 +1,80 @@
 import CoreGraphics
 
-/// Translates a raw touch coordinate into a point on a specific display.
-///
-/// This is the mathematical heart of the driver, intentionally isolated as a
-/// pure value type with no IOKit or global state. That makes the trickiest part
-/// of the system — the part that decides *where* the cursor goes — fully unit
-/// testable without any hardware (see `CoordinateMapperTests`).
-struct CoordinateMapper {
+/// Translates touch or stylus coordinates into global macOS screen coordinates
+/// on the target display, accounting for display rotation (`0°`, `90°`, `180°`, `270°`)
+/// and optional axis inversion.
+public struct CoordinateMapper: Equatable, Sendable {
 
-    /// The raw coordinate range the panel actually reports.
-    var calibration: CalibrationData
+    public var calibration: CalibrationData
+    public var displayBounds: CGRect
+    public var invertX: Bool
+    public var invertY: Bool
+    /// Display rotation in degrees clockwise (`0`, `90`, `180`, `270`).
+    public var rotationDegrees: Int
 
-    /// The target display's bounds in the global screen coordinate space.
-    var displayBounds: CGRect
+    public init(
+        calibration: CalibrationData = .m14tFactory,
+        displayBounds: CGRect,
+        invertX: Bool = false,
+        invertY: Bool = false,
+        rotationDegrees: Int = 0
+    ) {
+        self.calibration = calibration
+        self.displayBounds = displayBounds
+        self.invertX = invertX
+        self.invertY = invertY
+        self.rotationDegrees = rotationDegrees
+    }
 
-    var invertX: Bool
-    var invertY: Bool
-
-    /// Map a raw `(x, y)` touch sample to an absolute screen point.
-    ///
-    /// The result is clamped to the display so a slightly-out-of-range sample
-    /// (common near the bezel) never throws the cursor off-screen.
-    func map(rawX: Double, rawY: Double) -> CGPoint {
+    /// Map a raw `(rawX, rawY)` touch sample using `calibration` into an absolute screen point.
+    public func map(rawX: Double, rawY: Double) -> CGPoint {
         let rangeX = calibration.xMax - calibration.xMin
         let rangeY = calibration.yMax - calibration.yMin
-
-        // Degenerate calibration — avoid divide-by-zero, fall back to origin.
         guard rangeX > 0, rangeY > 0 else { return displayBounds.origin }
 
-        var ratioX = (rawX - calibration.xMin) / rangeX
-        var ratioY = (rawY - calibration.yMin) / rangeY
+        let u = (rawX - calibration.xMin) / rangeX
+        let v = (rawY - calibration.yMin) / rangeY
+        return mapNormalized(u: u, v: v)
+    }
 
-        if invertX { ratioX = 1 - ratioX }
-        if invertY { ratioY = 1 - ratioY }
+    /// Map a normalized `(u, v)` coordinate in `0...1` into an absolute screen point on `displayBounds`.
+    public func mapNormalized(u: Double, v: Double) -> CGPoint {
+        guard displayBounds.width > 0, displayBounds.height > 0 else {
+            return displayBounds.origin
+        }
 
-        ratioX = ratioX.clamped(to: 0...1)
-        ratioY = ratioY.clamped(to: 0...1)
+        var rx = u.clamped(to: 0.0...1.0)
+        var ry = v.clamped(to: 0.0...1.0)
 
-        return CGPoint(
-            x: displayBounds.minX + ratioX * displayBounds.width,
-            y: displayBounds.minY + ratioY * displayBounds.height
-        )
+        // Apply display hardware rotation before axis inversion.
+        let normalizedRotation = ((rotationDegrees % 360) + 360) % 360
+        switch normalizedRotation {
+        case 90:
+            let oldX = rx
+            rx = 1.0 - ry
+            ry = oldX
+        case 180:
+            rx = 1.0 - rx
+            ry = 1.0 - ry
+        case 270:
+            let oldX = rx
+            rx = ry
+            ry = 1.0 - oldX
+        default:
+            break
+        }
+
+        if invertX { rx = 1.0 - rx }
+        if invertY { ry = 1.0 - ry }
+
+        // Clamp 1px inside the right/bottom edge so macOS never spills the cursor onto an adjacent monitor.
+        let maxX = max(displayBounds.minX, displayBounds.maxX - 0.5)
+        let maxY = max(displayBounds.minY, displayBounds.maxY - 0.5)
+
+        let screenX = (displayBounds.minX + rx * displayBounds.width).clamped(to: displayBounds.minX...maxX)
+        let screenY = (displayBounds.minY + ry * displayBounds.height).clamped(to: displayBounds.minY...maxY)
+
+        return CGPoint(x: screenX, y: screenY)
     }
 }
 
