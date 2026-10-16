@@ -127,6 +127,7 @@ public final class GestureEngine {
     private var wasBarrelPressed = false
     private var wasTopButtonPressed = false
     private var lastStylusPoint: CGPoint = .zero
+    private var lastStylusTimestamp: TimeInterval = 0
 
     // Threshold constants (in macOS screen points & seconds)
     private let tapMaxDuration: TimeInterval = 1.20
@@ -149,7 +150,15 @@ public final class GestureEngine {
     // MARK: - Multi-Touch Frame Processing
 
     public func processFrame(contacts: [MappedContact], timestamp: TimeInterval) -> [GestureAction] {
-        // Hardware palm rejection while the Smart Pencil is hovering / writing on the glass.
+        // Automatically expire pen hover proximity if no pen reports have arrived for > 150ms
+        if isStylusInRange && (timestamp - lastStylusTimestamp > 0.15) {
+            isStylusInRange = false
+            isStylusTipDown = false
+            isStylusRightDown = false
+            isStylusMiddleDown = false
+        }
+
+        // Hardware palm rejection while the Smart Pencil is actively hovering / writing on the glass.
         if config.stylusEnabled && config.palmRejectionWhileStylusInRange && isStylusInRange {
             if state != .idle {
                 return cancelFingerGestureForStylus()
@@ -253,6 +262,7 @@ public final class GestureEngine {
         guard config.stylusEnabled else { return [] }
         var actions: [GestureAction] = []
         lastStylusPoint = screenPoint
+        lastStylusTimestamp = sample.timestamp > 0 ? sample.timestamp : ProcessInfo.processInfo.systemUptime
 
         let barrelActive = sample.barrelSwitch && config.barrelButtonAction != .disabled
         let topButtonActive = sample.isTopButtonActive && config.secondaryBarrelButtonAction != .disabled

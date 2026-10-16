@@ -310,11 +310,13 @@ public final class HIDTouchDriver {
 
         let parent = IOHIDElementGetParent(element)
         let parentUsage = parent.map { IOHIDElementGetUsage($0) } ?? 0
-        let isStylusReport =
+
+        let isTouchReport = (reportID == UInt32(HID.ReportID.multiTouch) || reportID == UInt32(HID.ReportID.secondaryTouch))
+        let isStylusReport = !isTouchReport && (
             reportID == UInt32(HID.ReportID.stylus) ||
             reportID == UInt32(HID.ReportID.stylusVendor) ||
-            parentUsage == HID.Digitizer.stylus.rawValue ||
-            parentUsage == HID.Digitizer.pen.rawValue
+            parentUsage == HID.Digitizer.stylus.rawValue
+        )
 
         if isStylusReport {
             updateStylusElement(page: page, usage: usage, intVal: intVal, logicalMax: logicalMax)

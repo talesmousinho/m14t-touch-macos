@@ -31,15 +31,15 @@ final class SettingsModel: ObservableObject {
     }
 
     var helperURL: URL {
-        if let bundled = Bundle.main.resourceURL?.appendingPathComponent("m14ttouch"),
-           FileManager.default.isExecutableFile(atPath: bundled.path) {
-            return bundled
-        }
-
         let localBin = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".local/bin/m14ttouch")
         if FileManager.default.isExecutableFile(atPath: localBin.path) {
             return localBin
+        }
+
+        if let bundled = Bundle.main.resourceURL?.appendingPathComponent("m14ttouch"),
+           FileManager.default.isExecutableFile(atPath: bundled.path) {
+            return bundled
         }
 
         return Bundle.main.executableURL?
