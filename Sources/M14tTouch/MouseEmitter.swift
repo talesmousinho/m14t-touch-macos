@@ -353,34 +353,51 @@ public final class MouseEmitter {
         momentumTimer = nil
         scrollAccumulatorX = 0
         scrollAccumulatorY = 0
+        zoomAccumulator = 0
     }
 
-    // MARK: - Native Trackpad Pinch-to-Zoom (`NSEvent.EventType.magnify`)
+    // MARK: - Safe Universal Pinch-to-Zoom (Command + Pixel Scroll)
+
+    private var zoomAccumulator: Double = 0
 
     private func postMagnify(at point: CGPoint, magnification: Double, phase: GesturePhase) {
-        guard let gestureType = CGEventType(rawValue: 29),
-              let zoomEvent = CGEvent(source: nil),
-              let dockWrapper = CGEvent(source: nil) else { return }
-
-        if phase == .began {
+        switch phase {
+        case .began:
+            zoomAccumulator = 0
             postMouse(type: .mouseMoved, button: .left, at: point, clickCount: 0)
+            emitZoomScroll(at: point, delta: 0, phase: phase.rawValue)
+
+        case .changed:
+            let step = magnification * 120.0
+            zoomAccumulator += step
+            let intStep = Int32(zoomAccumulator)
+            if intStep != 0 {
+                zoomAccumulator -= Double(intStep)
+                emitZoomScroll(at: point, delta: intStep, phase: phase.rawValue)
+            }
+
+        case .ended, .cancelled:
+            zoomAccumulator = 0
+            emitZoomScroll(at: point, delta: 0, phase: phase.rawValue)
+        }
+    }
+
+    private func emitZoomScroll(at point: CGPoint, delta: Int32, phase: UInt64) {
+        guard let event = CGEvent(
+            scrollWheelEvent2Source: nil,
+            units: .pixel,
+            wheelCount: 1,
+            wheel1: delta,
+            wheel2: 0,
+            wheel3: 0
+        ) else {
+            return
         }
 
-        zoomEvent.type = gestureType
-        zoomEvent.location = point
-        if let f110 = CGEventField(rawValue: 110) { zoomEvent.setIntegerValueField(f110, value: 8) }
-        if let f113 = CGEventField(rawValue: 113) { zoomEvent.setDoubleValueField(f113, value: magnification) }
-        if let f114 = CGEventField(rawValue: 114) { zoomEvent.setDoubleValueField(f114, value: magnification) }
-        if let f116 = CGEventField(rawValue: 116) { zoomEvent.setDoubleValueField(f116, value: magnification) }
-        if let f132 = CGEventField(rawValue: 132) { zoomEvent.setIntegerValueField(f132, value: Int64(phase.rawValue)) }
-
-        dockWrapper.type = gestureType
-        dockWrapper.location = point
-        if let f110 = CGEventField(rawValue: 110) { dockWrapper.setIntegerValueField(f110, value: 61) }
-        if let f132 = CGEventField(rawValue: 132) { dockWrapper.setIntegerValueField(f132, value: Int64(phase.rawValue)) }
-
-        zoomEvent.post(tap: .cghidEventTap)
-        dockWrapper.post(tap: .cghidEventTap)
+        event.location = point
+        event.flags = .maskCommand
+        event.setIntegerValueField(.scrollWheelEventScrollPhase, value: Int64(phase))
+        event.post(tap: .cghidEventTap)
     }
 
     // MARK: - System Trackpad Shortcuts (Desktops / Spaces, Mission Control, App Exposé)
