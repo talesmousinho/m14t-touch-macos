@@ -150,22 +150,6 @@ public final class GestureEngine {
     // MARK: - Multi-Touch Frame Processing
 
     public func processFrame(contacts: [MappedContact], timestamp: TimeInterval) -> [GestureAction] {
-        // Automatically expire pen hover proximity if no pen reports have arrived for > 150ms
-        if isStylusInRange && (timestamp - lastStylusTimestamp > 0.15) {
-            isStylusInRange = false
-            isStylusTipDown = false
-            isStylusRightDown = false
-            isStylusMiddleDown = false
-        }
-
-        // Hardware palm rejection while the Smart Pencil is actively hovering / writing on the glass.
-        if config.stylusEnabled && config.palmRejectionWhileStylusInRange && isStylusInRange {
-            if state != .idle {
-                return cancelFingerGestureForStylus()
-            }
-            return []
-        }
-
         var actions: [GestureAction] = []
 
         // First evaluate any time-based transitions up to `timestamp`.
@@ -218,7 +202,7 @@ public final class GestureEngine {
     public func reset() -> [GestureAction] {
         var actions = cancelFingerGestureForStylus()
         if isStylusTipDown {
-            actions.append(.stylusUp(at: lastStylusPoint, pointerType: activeStylusPointerType))
+            actions.append(.leftMouseUp(at: lastStylusPoint, clickCount: 1))
             isStylusTipDown = false
         }
         if isStylusRightDown {
@@ -228,10 +212,6 @@ public final class GestureEngine {
         if isStylusMiddleDown {
             actions.append(.middleMouseUp(at: lastStylusPoint))
             isStylusMiddleDown = false
-        }
-        if isStylusInRange {
-            actions.append(.tabletProximity(at: lastStylusPoint, inRange: false, pointerType: activeStylusPointerType))
-            isStylusInRange = false
         }
         wasBarrelPressed = false
         wasTopButtonPressed = false
@@ -262,7 +242,6 @@ public final class GestureEngine {
         guard config.stylusEnabled else { return [] }
         var actions: [GestureAction] = []
         lastStylusPoint = screenPoint
-        lastStylusTimestamp = sample.timestamp > 0 ? sample.timestamp : ProcessInfo.processInfo.systemUptime
 
         let barrelActive = sample.barrelSwitch && config.barrelButtonAction != .disabled
         let topButtonActive = sample.isTopButtonActive && config.secondaryBarrelButtonAction != .disabled
@@ -272,7 +251,7 @@ public final class GestureEngine {
         if !anyActiveSignal {
             if isStylusTipDown {
                 isStylusTipDown = false
-                actions.append(.stylusUp(at: screenPoint, pointerType: activeStylusPointerType))
+                actions.append(.leftMouseUp(at: screenPoint, clickCount: 1))
             }
             if isStylusRightDown {
                 isStylusRightDown = false
@@ -282,40 +261,12 @@ public final class GestureEngine {
                 isStylusMiddleDown = false
                 actions.append(.middleMouseUp(at: screenPoint))
             }
-            if isStylusInRange {
-                isStylusInRange = false
-                actions.append(.tabletProximity(at: screenPoint, inRange: false, pointerType: activeStylusPointerType))
-            }
             wasBarrelPressed = false
             wasTopButtonPressed = false
             return actions
         }
 
-        // Cancel any active finger touch when the Smart Pencil enters range (palm rejection)
-        if config.palmRejectionWhileStylusInRange && state != .idle {
-            actions.append(contentsOf: cancelFingerGestureForStylus())
-        }
-
-        // 2. Determine whether the transducer is acting as a Pen tip or Tablet Eraser
-        let isEraserSelected =
-            (topButtonActive && config.secondaryBarrelButtonAction == .eraser) ||
-            (barrelActive && config.barrelButtonAction == .eraser)
-        let desiredPointerType: StylusPointerType = isEraserSelected ? .eraser : .pen
-
-        if !isStylusInRange {
-            isStylusInRange = true
-            activeStylusPointerType = desiredPointerType
-            actions.append(.tabletProximity(at: screenPoint, inRange: true, pointerType: desiredPointerType))
-        } else if desiredPointerType != activeStylusPointerType {
-            if isStylusTipDown {
-                isStylusTipDown = false
-                actions.append(.stylusUp(at: screenPoint, pointerType: activeStylusPointerType))
-            }
-            activeStylusPointerType = desiredPointerType
-            actions.append(.tabletProximity(at: screenPoint, inRange: true, pointerType: desiredPointerType))
-        }
-
-        // 3. Evaluate one-shot barrel button actions (Double-Click, Undo) on rising edge
+        // 2. Evaluate one-shot barrel button actions (Double-Click, Undo) on rising edge
         let barrelRisingEdge = barrelActive && !wasBarrelPressed
         let topRisingEdge = topButtonActive && !wasTopButtonPressed
         wasBarrelPressed = barrelActive
@@ -347,7 +298,7 @@ public final class GestureEngine {
             }
         }
 
-        // 4. Evaluate continuous held barrel button actions (Right-Click / Drag, Middle-Click / Drag)
+        // 3. Evaluate continuous held barrel button actions (Right-Click / Drag, Middle-Click / Drag)
         let wantsRightHold =
             (barrelActive && config.barrelButtonAction == .rightClick) ||
             (topButtonActive && config.secondaryBarrelButtonAction == .rightClick)
@@ -355,7 +306,7 @@ public final class GestureEngine {
         if wantsRightHold {
             if isStylusTipDown {
                 isStylusTipDown = false
-                actions.append(.stylusUp(at: screenPoint, pointerType: activeStylusPointerType))
+                actions.append(.leftMouseUp(at: screenPoint, clickCount: 1))
             }
             if !isStylusRightDown {
                 isStylusRightDown = true
@@ -377,7 +328,7 @@ public final class GestureEngine {
         if wantsMiddleHold {
             if isStylusTipDown {
                 isStylusTipDown = false
-                actions.append(.stylusUp(at: screenPoint, pointerType: activeStylusPointerType))
+                actions.append(.leftMouseUp(at: screenPoint, clickCount: 1))
             }
             if !isStylusMiddleDown {
                 isStylusMiddleDown = true
@@ -392,38 +343,20 @@ public final class GestureEngine {
             return actions
         }
 
-        // 5. Evaluate Pen Tip / Eraser Tip contact & pressure-sensitive drawing
-        // Note: Wacom firmware sets `sample.eraser` instead of `sample.tipSwitch` when touching the glass with the top button held.
-        let tipTouching = (desiredPointerType == .eraser) ? sample.isTipTouching : sample.tipSwitch
+        // 4. Evaluate Pen Tip contact & pressure-sensitive drawing
+        let tipTouching = sample.isTipTouching
         let clampedPressure = max(sample.pressure, 0.1)
 
         if tipTouching && !isStylusTipDown {
             isStylusTipDown = true
-            actions.append(.stylusDown(
-                at: screenPoint,
-                pressure: clampedPressure,
-                tiltX: sample.tiltX,
-                tiltY: sample.tiltY,
-                pointerType: desiredPointerType
-            ))
+            actions.append(.leftMouseDown(at: screenPoint, clickCount: 1))
         } else if tipTouching && isStylusTipDown {
-            actions.append(.stylusDragged(
-                to: screenPoint,
-                pressure: clampedPressure,
-                tiltX: sample.tiltX,
-                tiltY: sample.tiltY,
-                pointerType: desiredPointerType
-            ))
+            actions.append(.leftMouseDragged(to: screenPoint, pressure: clampedPressure))
         } else if !tipTouching && isStylusTipDown {
             isStylusTipDown = false
-            actions.append(.stylusUp(at: screenPoint, pointerType: desiredPointerType))
+            actions.append(.leftMouseUp(at: screenPoint, clickCount: 1))
         } else if sample.inRange {
-            actions.append(.stylusHover(
-                to: screenPoint,
-                tiltX: sample.tiltX,
-                tiltY: sample.tiltY,
-                pointerType: desiredPointerType
-            ))
+            actions.append(.moveCursor(to: screenPoint))
         }
 
         return actions

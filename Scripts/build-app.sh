@@ -77,7 +77,7 @@ if [[ -n "${DEVELOPER_ID_APP:-}" ]]; then
     codesign --force --options runtime --timestamp --sign "$DEVELOPER_ID_APP" "$HELPER_EXECUTABLE"
     codesign --force --options runtime --timestamp --sign "$DEVELOPER_ID_APP" "$APP"
 else
-    codesign --force --sign - "$HELPER_EXECUTABLE" >/dev/null
+    codesign --force --sign - --identifier "com.talesfonseca.m14ttouch" "$HELPER_EXECUTABLE" >/dev/null
     codesign --force --sign - "$APP" >/dev/null
 fi
 

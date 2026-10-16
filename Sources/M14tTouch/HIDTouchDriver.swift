@@ -106,17 +106,10 @@ public final class HIDTouchDriver {
         let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
         self.manager = manager
 
-        let matchingCriteria: [[String: Any]] = [
-            [
-                kIOHIDDeviceUsagePageKey: HID.Page.digitizer.rawValue,
-                kIOHIDDeviceUsageKey: HID.Digitizer.touchScreen.rawValue
-            ],
-            [
-                kIOHIDDeviceUsagePageKey: HID.Page.digitizer.rawValue,
-                kIOHIDDeviceUsageKey: HID.Digitizer.pen.rawValue
-            ]
-        ]
-        IOHIDManagerSetDeviceMatchingMultiple(manager, matchingCriteria as CFArray)
+        IOHIDManagerSetDeviceMatching(manager, [
+            kIOHIDDeviceUsagePageKey: HID.Page.digitizer.rawValue,
+            kIOHIDDeviceUsageKey: HID.Digitizer.touchScreen.rawValue
+        ] as CFDictionary)
 
         let context = Unmanaged.passUnretained(self).toOpaque()
 
@@ -310,15 +303,7 @@ public final class HIDTouchDriver {
 
         let parent = IOHIDElementGetParent(element)
         let parentUsage = parent.map { IOHIDElementGetUsage($0) } ?? 0
-
-        let isTouchReport = (reportID == UInt32(HID.ReportID.multiTouch) || reportID == UInt32(HID.ReportID.secondaryTouch))
-        let isStylusReport = !isTouchReport && (
-            reportID == UInt32(HID.ReportID.stylus) ||
-            reportID == UInt32(HID.ReportID.stylusVendor) ||
-            parentUsage == HID.Digitizer.stylus.rawValue
-        )
-
-        if isStylusReport {
+        if reportID == UInt32(HID.ReportID.stylus) || reportID == UInt32(HID.ReportID.stylusVendor) || parentUsage == HID.Digitizer.stylus.rawValue {
             updateStylusElement(page: page, usage: usage, intVal: intVal, logicalMax: logicalMax)
             scheduleFrameFlush()
             return

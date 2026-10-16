@@ -419,18 +419,17 @@ final class GestureEngineTests: XCTestCase {
             screenPoint: pt1
         )
         XCTAssertEqual(hover, [
-            .tabletProximity(at: pt1, inRange: true, pointerType: .pen),
-            .stylusHover(to: pt1, tiltX: 0.25, tiltY: -0.5, pointerType: .pen)
+            .moveCursor(to: pt1)
         ])
 
-        // 2. Palm rejection: finger touch while stylus is inRange is ignored
-        let palmTouch = engine.processFrame(
+        // 2. Finger touch is processed smoothly
+        let fingerTouch = engine.processFrame(
             contacts: [MappedContact(id: 1, point: CGPoint(x: 800, y: 800))],
             timestamp: 1.02
         )
-        XCTAssertTrue(palmTouch.isEmpty, "Palm touch must be rejected while Smart Pencil is in range")
+        XCTAssertFalse(fingerTouch.isEmpty, "Finger touch is not blocked")
 
-        // 3. Pen tip touches with 75% pressure -> stylusDown(.pen)
+        // 3. Pen tip touches with 75% pressure -> leftMouseDown
         let tipDown = engine.processStylus(
             sample: StylusSample(
                 tipSwitch: true,
@@ -449,10 +448,10 @@ final class GestureEngineTests: XCTestCase {
             screenPoint: pt1
         )
         XCTAssertEqual(tipDown, [
-            .stylusDown(at: pt1, pressure: 0.75, tiltX: 0.25, tiltY: -0.5, pointerType: .pen)
+            .leftMouseDown(at: pt1, clickCount: 1)
         ])
 
-        // 4. Pen tip lifts -> stylusUp(.pen)
+        // 4. Pen tip lifts -> leftMouseUp
         let tipUp = engine.processStylus(
             sample: StylusSample(
                 tipSwitch: false,
@@ -468,9 +467,9 @@ final class GestureEngineTests: XCTestCase {
             ),
             screenPoint: pt1
         )
-        XCTAssertEqual(tipUp, [.stylusUp(at: pt1, pointerType: .pen)])
+        XCTAssertEqual(tipUp, [.leftMouseUp(at: pt1, clickCount: 1)])
 
-        // 5. Bottom barrel button pressed -> rightMouseDown, dragged -> rightMouseDragged, released -> rightMouseUp
+        // 5. Bottom barrel button pressed -> rightMouseDown, released -> rightMouseUp
         let barrelDown = engine.processStylus(
             sample: StylusSample(
                 tipSwitch: false,
@@ -505,7 +504,7 @@ final class GestureEngineTests: XCTestCase {
         )
         XCTAssertEqual(barrelUp, [.rightMouseUp(at: pt1)])
 
-        // 6. Top barrel button held + tip touches (Wacom sets eraser=true, tipSwitch=false) -> switches to .eraser and draws!
+        // 6. Top barrel button held + tip touches (Wacom sets eraser=true, tipSwitch=false) -> draws
         let eraserDown = engine.processStylus(
             sample: StylusSample(
                 tipSwitch: false,
@@ -522,8 +521,7 @@ final class GestureEngineTests: XCTestCase {
             screenPoint: pt2
         )
         XCTAssertEqual(eraserDown, [
-            .tabletProximity(at: pt2, inRange: true, pointerType: .eraser),
-            .stylusDown(at: pt2, pressure: 0.9, tiltX: 0, tiltY: 0, pointerType: .eraser)
+            .leftMouseDown(at: pt2, clickCount: 1)
         ])
     }
 }

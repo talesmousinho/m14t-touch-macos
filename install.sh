@@ -107,6 +107,7 @@ if [[ -f "$INSTALL_BINARY" ]] && cmp -s "$BUILD_BINARY" "$INSTALL_BINARY"; then
 else
     cp "$BUILD_BINARY" "$INSTALL_BINARY"
     chmod +x "$INSTALL_BINARY"
+    codesign --force --sign - --identifier "com.talesfonseca.m14ttouch" "$INSTALL_BINARY" >/dev/null 2>&1 || true
     BINARY_UPDATED=true
 fi
 BINARY="$INSTALL_BINARY"
