@@ -56,11 +56,12 @@ swift build -c release
 .build/release/m14ttouch                                 # Run driver
 ```
 
-### Standalone Settings App & Installer Package
+### Standalone Settings App, Installer Package & Release DMG
 
 ```bash
 Scripts/build-app.sh  # creates .build/artifacts/M14tTouch.app
 Scripts/build-pkg.sh  # creates .build/artifacts/M14tTouch.pkg
+Scripts/build-dmg.sh  # creates .build/artifacts/M14tTouch-2.1.0.dmg
 ```
 
 ---

@@ -13,8 +13,8 @@ RESOURCES="$CONTENTS/Resources"
 APP_EXECUTABLE="$MACOS/M14tTouch"
 HELPER_EXECUTABLE="$RESOURCES/m14ttouch"
 APP_ID="${APP_ID:-com.talesfonseca.M14tTouch}"
-APP_VERSION="${APP_VERSION:-1.0.0}"
-APP_BUILD="${APP_BUILD:-1}"
+APP_VERSION="${APP_VERSION:-2.1.0}"
+APP_BUILD="${APP_BUILD:-210}"
 
 swift build -c "$CONFIGURATION" --product M14tTouchApp
 swift build -c "$CONFIGURATION" --product m14ttouch

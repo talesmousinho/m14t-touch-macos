@@ -10,7 +10,7 @@ PKG_COMPONENT="$DIST_DIR/M14tTouch-component.pkg"
 COMPONENT_PLIST="$DIST_DIR/M14tTouch-component.plist"
 PKG_OUTPUT="${PKG_OUTPUT:-$DIST_DIR/M14tTouch.pkg}"
 APP_ID="${APP_ID:-com.talesfonseca.M14tTouch}"
-APP_VERSION="${APP_VERSION:-1.0.0}"
+APP_VERSION="${APP_VERSION:-2.1.0}"
 
 APP_PATH="$("$ROOT/Scripts/build-app.sh" | tail -n 1)"
 
@@ -19,7 +19,7 @@ mkdir -p "$PAYLOAD_DIR/Applications"
 cp -R "$APP_PATH" "$PAYLOAD_DIR/Applications/M14tTouch.app"
 
 pkgbuild --analyze --root "$PAYLOAD_DIR" "$COMPONENT_PLIST" >/dev/null
-/usr/libexec/PlistBuddy -c "Set :0:BundleIsRelocatable false" "$COMPONENT_PLIST"
+/usr/libexec/PlistBuddy -c "Add :0:BundleIsRelocatable bool false" "$COMPONENT_PLIST" 2>/dev/null || /usr/libexec/PlistBuddy -c "Set :0:BundleIsRelocatable false" "$COMPONENT_PLIST"
 
 PKGBUILD_ARGS=(
     --root "$PAYLOAD_DIR"
