@@ -353,51 +353,32 @@ public final class MouseEmitter {
         momentumTimer = nil
         scrollAccumulatorX = 0
         scrollAccumulatorY = 0
-        zoomAccumulator = 0
     }
 
-    // MARK: - Safe Universal Pinch-to-Zoom (Command + Pixel Scroll)
-
-    private var zoomAccumulator: Double = 0
+    // MARK: - Native Trackpad Pinch-to-Zoom (`NSEvent.EventType.magnify`)
 
     private func postMagnify(at point: CGPoint, magnification: Double, phase: GesturePhase) {
-        switch phase {
-        case .began:
-            zoomAccumulator = 0
+        guard let gestureType = CGEventType(rawValue: 29),
+              let zoomEvent = CGEvent(source: nil) else { return }
+
+        if phase == .began {
             postMouse(type: .mouseMoved, button: .left, at: point, clickCount: 0)
-            emitZoomScroll(at: point, delta: 0, phase: phase.rawValue)
-
-        case .changed:
-            let step = magnification * 120.0
-            zoomAccumulator += step
-            let intStep = Int32(zoomAccumulator)
-            if intStep != 0 {
-                zoomAccumulator -= Double(intStep)
-                emitZoomScroll(at: point, delta: intStep, phase: phase.rawValue)
-            }
-
-        case .ended, .cancelled:
-            zoomAccumulator = 0
-            emitZoomScroll(at: point, delta: 0, phase: phase.rawValue)
-        }
-    }
-
-    private func emitZoomScroll(at point: CGPoint, delta: Int32, phase: UInt64) {
-        guard let event = CGEvent(
-            scrollWheelEvent2Source: nil,
-            units: .pixel,
-            wheelCount: 1,
-            wheel1: delta,
-            wheel2: 0,
-            wheel3: 0
-        ) else {
-            return
         }
 
-        event.location = point
-        event.flags = .maskCommand
-        event.setIntegerValueField(.scrollWheelEventScrollPhase, value: Int64(phase))
-        event.post(tap: .cghidEventTap)
+        zoomEvent.type = gestureType
+        zoomEvent.location = point
+
+        // Native macOS trackpad pinch-to-zoom CoreGraphics fields:
+        // Field 55:  kCGSEventTypeField = 29 (NSEventTypeGesture)
+        // Field 110: kCGEventGestureHIDType = 8 (kIOHIDEventTypeZoom)
+        // Field 113: kCGEventGestureZoomValue = magnification delta
+        // Field 132: kCGEventGesturePhase = phase (1=began, 2=changed, 4=ended, 8=cancelled)
+        if let f55 = CGEventField(rawValue: 55) { zoomEvent.setIntegerValueField(f55, value: 29) }
+        if let f110 = CGEventField(rawValue: 110) { zoomEvent.setIntegerValueField(f110, value: 8) }
+        if let f113 = CGEventField(rawValue: 113) { zoomEvent.setDoubleValueField(f113, value: magnification) }
+        if let f132 = CGEventField(rawValue: 132) { zoomEvent.setIntegerValueField(f132, value: Int64(phase.rawValue)) }
+
+        zoomEvent.post(tap: .cghidEventTap)
     }
 
     // MARK: - System Trackpad Shortcuts (Desktops / Spaces, Mission Control, App Exposé)

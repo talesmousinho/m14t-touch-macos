@@ -139,7 +139,7 @@ public final class GestureEngine {
     private let twoFingerTapSlop: Double = 15.0
     private let twoFingerTapMaxSpanChange: Double = 32.0
     private let scrollStartThreshold: Double = 15.0
-    private let pinchStartThreshold: Double = 26.0
+    private let pinchStartThreshold: Double = 12.0
     private let threeFingerSwipeThreshold: Double = 52.0
     private let holdToSelectDuration: TimeInterval = 0.24
 
@@ -518,9 +518,9 @@ public final class GestureEngine {
             let spanChange = abs(span - startSpan)
             let elapsed = timestamp - startTime
 
-            // 1. Pinch-to-Zoom: requires purposeful span expansion/contraction exceeding centroid translation
-            if config.pinchToZoom && startSpan > 20.0 && spanChange >= pinchStartThreshold && spanChange >= centroidMove * 1.25 {
-                let deltaMag = (span - lastSpan) / max(startSpan, 100.0)
+            // 1. Pinch-to-Zoom: requires purposeful span expansion/contraction
+            if config.pinchToZoom && startSpan > 15.0 && spanChange >= pinchStartThreshold && spanChange >= centroidMove * 0.75 {
+                let deltaMag = (span - lastSpan) / max(startSpan, 80.0) * 1.5
                 state = .twoFingerPinching(lastCentroid: centroid, startSpan: startSpan, lastSpan: span)
                 return [
                     .magnify(at: centroid, magnification: 0, phase: .began),
@@ -528,9 +528,8 @@ public final class GestureEngine {
                 ]
             }
 
-            // 2. Two-Finger Scroll: requires either >= 20pt movement OR (>= 10pt movement after 160ms hold),
-            // so a quick 2-finger tap never accidentally starts scrolling due to fingertip roll.
-            let shouldStartScroll = centroidMove >= scrollStartThreshold || (elapsed >= 0.16 && centroidMove >= 10.0)
+            // 2. Two-Finger Scroll: requires directed translation without dominant span change
+            let shouldStartScroll = (centroidMove >= scrollStartThreshold || (elapsed >= 0.16 && centroidMove >= 10.0)) && (spanChange < centroidMove * 1.1)
             if config.twoFingerScroll && shouldStartScroll {
                 let (dx, dy) = scrollDeltas(from: lastCentroid, to: centroid)
                 state = .twoFingerScrolling(lastCentroid: centroid, lastSpan: span)
@@ -549,8 +548,19 @@ public final class GestureEngine {
             )
             return []
 
-        case let .twoFingerScrolling(lastCentroid, _):
+        case let .twoFingerScrolling(lastCentroid, lastSpan):
             let step = hypot(centroid.x - lastCentroid.x, centroid.y - lastCentroid.y)
+            let spanChange = abs(span - lastSpan)
+            // If user spreads or pinches fingers while scrolling, transition into pinch zoom!
+            if config.pinchToZoom && spanChange >= 18.0 && spanChange > step * 1.5 {
+                let deltaMag = (span - lastSpan) / max(lastSpan, 80.0) * 1.5
+                state = .twoFingerPinching(lastCentroid: centroid, startSpan: lastSpan, lastSpan: span)
+                return [
+                    .scroll(at: lastCentroid, deltaX: 0, deltaY: 0, phase: .ended),
+                    .magnify(at: centroid, magnification: 0, phase: .began),
+                    .magnify(at: centroid, magnification: deltaMag, phase: .changed)
+                ]
+            }
             guard step >= 0.5 else { return [] }
             let (dx, dy) = scrollDeltas(from: lastCentroid, to: centroid)
             state = .twoFingerScrolling(lastCentroid: centroid, lastSpan: span)
@@ -558,8 +568,8 @@ public final class GestureEngine {
 
         case let .twoFingerPinching(_, startSpan, lastSpan):
             let spanStep = abs(span - lastSpan)
-            guard spanStep >= 1.0 else { return [] }
-            let deltaMag = (span - lastSpan) / max(startSpan, 100.0)
+            guard spanStep >= 0.5 else { return [] }
+            let deltaMag = (span - lastSpan) / max(startSpan, 80.0) * 1.5
             state = .twoFingerPinching(lastCentroid: centroid, startSpan: startSpan, lastSpan: span)
             return [.magnify(at: centroid, magnification: deltaMag, phase: .changed)]
 
