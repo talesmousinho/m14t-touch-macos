@@ -34,6 +34,7 @@ public final class HIDTouchDriver {
     private struct StylusState {
         var tipSwitch: Bool = false
         var barrelSwitch: Bool = false
+        var secondaryBarrelSwitch: Bool = false
         var eraser: Bool = false
         var invert: Bool = false
         var inRange: Bool = false
@@ -43,6 +44,8 @@ public final class HIDTouchDriver {
         var maxY: Double = HID.Hardware.penMaxY
         var rawPressure: Double = 0
         var maxPressure: Double = HID.Hardware.penMaxPressure
+        var tiltX: Double = 0
+        var tiltY: Double = 0
         var dirty: Bool = false
     }
 
@@ -52,6 +55,7 @@ public final class HIDTouchDriver {
     private var frameFlushScheduled = false
     private var previousActiveFingerCount = 0
     private var isTouchActive = false
+    private var hasAppliedResolutionPreset = false
 
     // Display & Coordinate mapping state
     private var calibration: CalibrationData = .m14tFactory
@@ -102,10 +106,17 @@ public final class HIDTouchDriver {
         let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
         self.manager = manager
 
-        IOHIDManagerSetDeviceMatching(manager, [
-            kIOHIDDeviceUsagePageKey: HID.Page.digitizer.rawValue,
-            kIOHIDDeviceUsageKey: HID.Digitizer.touchScreen.rawValue
-        ] as CFDictionary)
+        let matchingCriteria: [[String: Any]] = [
+            [
+                kIOHIDDeviceUsagePageKey: HID.Page.digitizer.rawValue,
+                kIOHIDDeviceUsageKey: HID.Digitizer.touchScreen.rawValue
+            ],
+            [
+                kIOHIDDeviceUsagePageKey: HID.Page.digitizer.rawValue,
+                kIOHIDDeviceUsageKey: HID.Digitizer.pen.rawValue
+            ]
+        ]
+        IOHIDManagerSetDeviceMatchingMultiple(manager, matchingCriteria as CFArray)
 
         let context = Unmanaged.passUnretained(self).toOpaque()
 
@@ -125,7 +136,7 @@ public final class HIDTouchDriver {
 
         let result = IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))
         if result == kIOReturnSuccess {
-            log("✅ Listening for M14t multi-touch & stylus events…")
+            log("✅ Listening for M14t multi-touch & Smart Pencil events…")
         } else {
             log("⚠️  IOHIDManagerOpen returned \(String(format: "0x%08X", UInt32(bitPattern: result)))")
             log("   Grant 'Input Monitoring' in System Settings → Privacy & Security → Input Monitoring.")
@@ -182,11 +193,27 @@ public final class HIDTouchDriver {
     // MARK: - Display Resolution & Hotplug
 
     public func refreshTargetDisplay(logUpdate: Bool) {
-        guard let resolved = DisplayResolver.resolve(
+        guard var resolved = DisplayResolver.resolve(
             forIndex: config.displayIndex,
             preferAutoDetectM14t: config.autoDetectM14tDisplay
         ) else {
             return
+        }
+
+        if !hasAppliedResolutionPreset, config.displayResolutionPreset != .systemDefault {
+            hasAppliedResolutionPreset = true
+            switch DisplayResolver.applyResolutionPreset(config.displayResolutionPreset, to: resolved.id) {
+            case .success(let msg):
+                if logUpdate { log("📐 \(msg)") }
+                if let updated = DisplayResolver.resolve(
+                    forIndex: config.displayIndex,
+                    preferAutoDetectM14t: config.autoDetectM14tDisplay
+                ) {
+                    resolved = updated
+                }
+            case .failure(let err):
+                if logUpdate { log("⚠️  Display resolution switch failed: \(err.localizedDescription)") }
+            }
         }
 
         let changed = (currentDisplay != resolved)
@@ -196,9 +223,12 @@ public final class HIDTouchDriver {
 
         if logUpdate && changed {
             let tag = resolved.isM14t ? "M14t auto-detected" : (resolved.isMain ? "main fallback" : "external")
+            let dpiTag = resolved.isHiDPI
+                ? "2x HiDPI (\(resolved.pixelWidth)×\(resolved.pixelHeight) px)"
+                : "1x (\(resolved.pixelWidth)×\(resolved.pixelHeight) px)"
             log(
                 "🖥️  Target display [\(resolved.index)] \"\(resolved.name)\" (\(tag)): " +
-                "\(Int(resolved.bounds.width))×\(Int(resolved.bounds.height)) " +
+                "\(Int(resolved.bounds.width))×\(Int(resolved.bounds.height)) [\(dpiTag)] " +
                 "@ (\(Int(resolved.bounds.minX)),\(Int(resolved.bounds.minY))) " +
                 "rot=\(resolved.rotationDegrees)°"
             )
@@ -280,7 +310,13 @@ public final class HIDTouchDriver {
 
         let parent = IOHIDElementGetParent(element)
         let parentUsage = parent.map { IOHIDElementGetUsage($0) } ?? 0
-        if reportID == UInt32(HID.ReportID.stylus) || parentUsage == HID.Digitizer.stylus.rawValue {
+        let isStylusReport =
+            reportID == UInt32(HID.ReportID.stylus) ||
+            reportID == UInt32(HID.ReportID.stylusVendor) ||
+            parentUsage == HID.Digitizer.stylus.rawValue ||
+            parentUsage == HID.Digitizer.pen.rawValue
+
+        if isStylusReport {
             updateStylusElement(page: page, usage: usage, intVal: intVal, logicalMax: logicalMax)
             scheduleFrameFlush()
             return
@@ -337,6 +373,9 @@ public final class HIDTouchDriver {
         case (HID.Page.digitizer.rawValue, HID.Digitizer.barrelSwitch.rawValue):
             stylusState.barrelSwitch = (intVal != 0)
             stylusState.dirty = true
+        case (HID.Page.digitizer.rawValue, HID.Digitizer.secondaryBarrelSwitch.rawValue):
+            stylusState.secondaryBarrelSwitch = (intVal != 0)
+            stylusState.dirty = true
         case (HID.Page.digitizer.rawValue, HID.Digitizer.eraser.rawValue):
             stylusState.eraser = (intVal != 0)
             stylusState.dirty = true
@@ -349,6 +388,14 @@ public final class HIDTouchDriver {
         case (HID.Page.digitizer.rawValue, HID.Digitizer.tipPressure.rawValue):
             stylusState.rawPressure = Double(intVal)
             if logicalMax > 0 { stylusState.maxPressure = logicalMax }
+            stylusState.dirty = true
+        case (HID.Page.digitizer.rawValue, HID.Digitizer.xTilt.rawValue):
+            let scale = logicalMax > 0 ? logicalMax : 90.0
+            stylusState.tiltX = min(max(Double(intVal) / scale, -1.0), 1.0)
+            stylusState.dirty = true
+        case (HID.Page.digitizer.rawValue, HID.Digitizer.yTilt.rawValue):
+            let scale = logicalMax > 0 ? logicalMax : 90.0
+            stylusState.tiltY = min(max(Double(intVal) / scale, -1.0), 1.0)
             stylusState.dirty = true
         case (HID.Page.genericDesktop.rawValue, HID.GenericDesktop.x.rawValue):
             stylusState.rawX = Double(intVal)
@@ -382,7 +429,7 @@ public final class HIDTouchDriver {
             refreshTargetDisplay(logUpdate: true)
         }
 
-        // 1. Flush stylus if active
+        // 1. Flush Smart Pencil / Active Stylus if active
         if stylusState.dirty {
             stylusState.dirty = false
             let u = stylusState.maxX > 0 ? stylusState.rawX / stylusState.maxX : 0
@@ -391,17 +438,23 @@ public final class HIDTouchDriver {
             let sample = StylusSample(
                 tipSwitch: stylusState.tipSwitch,
                 barrelSwitch: stylusState.barrelSwitch,
+                secondaryBarrelSwitch: stylusState.secondaryBarrelSwitch,
                 eraser: stylusState.eraser,
                 invert: stylusState.invert,
                 inRange: stylusState.inRange,
                 rawX: stylusState.rawX,
                 rawY: stylusState.rawY,
                 pressure: p,
+                tiltX: stylusState.tiltX,
+                tiltY: stylusState.tiltY,
                 timestamp: now
             )
             let screenPt = mapper.mapNormalized(u: u, v: v)
-            isTouchActive = sample.inRange || sample.tipSwitch
+            isTouchActive = sample.inRange || sample.isTipTouching
             let actions = gestureEngine.processStylus(sample: sample, screenPoint: screenPt)
+            if config.debugMode, !actions.isEmpty {
+                log("✏️  stylus → \(actions)")
+            }
             emitter.execute(actions)
             return
         }

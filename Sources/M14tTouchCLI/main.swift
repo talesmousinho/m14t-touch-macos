@@ -33,8 +33,27 @@ func printDisplays() {
         var tags: [String] = []
         if d.isM14t { tags.append("M14t detected ✅") }
         if d.isMain { tags.append("main") }
+        let dpiTag = d.isHiDPI
+            ? "2x HiDPI (\(d.pixelWidth)×\(d.pixelHeight) px)"
+            : "1x (\(d.pixelWidth)×\(d.pixelHeight) px)"
         let suffix = tags.isEmpty ? "" : "  ← " + tags.joined(separator: ", ")
-        print("   [\(d.index)]  \"\(d.name)\"  \(Int(d.bounds.width)) × \(Int(d.bounds.height))  @ (\(Int(d.bounds.minX)),\(Int(d.bounds.minY)))  rot=\(d.rotationDegrees)°\(suffix)")
+        print("   [\(d.index)]  \"\(d.name)\"  \(Int(d.bounds.width)) × \(Int(d.bounds.height)) [\(dpiTag)]  @ (\(Int(d.bounds.minX)),\(Int(d.bounds.minY)))  rot=\(d.rotationDegrees)°\(suffix)")
+    }
+    fflush(stdout)
+}
+
+func printDisplayModes() {
+    guard let target = DisplayResolver.resolve(forIndex: 1, preferAutoDetectM14t: true) else {
+        print("❌ No display found.")
+        return
+    }
+    print("📐 Available modes for [\(target.index)] \"\(target.name)\" (Display ID \(target.id)):")
+    for mode in DisplayResolver.availableModes(for: target.id) {
+        let currentMark = (Int(target.bounds.width.rounded()) == mode.width &&
+                           Int(target.bounds.height.rounded()) == mode.height &&
+                           target.pixelWidth == mode.pixelWidth &&
+                           Int(target.refreshRate.rounded()) == Int(mode.refreshRate.rounded())) ? "  ← active ✅" : ""
+        print("   • \(mode.description)\(currentMark)")
     }
     fflush(stdout)
 }
@@ -70,6 +89,20 @@ case .help:
 case .listDisplays:
     printDisplays()
     exit(0)
+
+case .listModes:
+    printDisplayModes()
+    exit(0)
+
+case .setResolution(let preset):
+    switch DisplayResolver.applyResolutionPreset(preset) {
+    case .success(let msg):
+        print("✅ \(msg)")
+        exit(0)
+    case .failure(let err):
+        print("❌ \(err.localizedDescription)")
+        exit(1)
+    }
 
 case .resetCalibration:
     if CalibrationStore.reset() {

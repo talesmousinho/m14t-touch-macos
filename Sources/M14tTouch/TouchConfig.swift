@@ -9,11 +9,100 @@ public enum OneFingerMode: String, Codable, CaseIterable, Equatable, Sendable {
     case scrollAndHoldToSelect = "scroll"
 }
 
+/// Action assigned to either of the M14t Smart Pencil's two side barrel buttons.
+public enum StylusButtonAction: String, Codable, CaseIterable, Equatable, Sendable {
+    /// Right-click / context menu (or right-drag when moving the pen).
+    case rightClick = "right"
+    /// Native macOS Tablet Eraser mode (`NSPointingDeviceType.eraser`) — auto-switches drawing/PDF apps to Eraser.
+    case eraser = "eraser"
+    /// Middle mouse button click / pan (useful in Figma, Blender, CAD, and browsers).
+    case middleClick = "middle"
+    /// Double-click at the pen cursor location.
+    case doubleClick = "double"
+    /// Sends `⌘Z` (Undo) when the button is pressed.
+    case undo = "undo"
+    /// Ignore the barrel button.
+    case disabled = "none"
+
+    public var label: String {
+        switch self {
+        case .rightClick:  return "Right-Click / Context Menu"
+        case .eraser:      return "Eraser Tool (Tablet Eraser)"
+        case .middleClick: return "Middle-Click / Pan"
+        case .doubleClick: return "Double-Click"
+        case .undo:        return "Undo (⌘Z)"
+        case .disabled:    return "Disabled"
+        }
+    }
+}
+
+/// Display resolution & HiDPI scaling presets for the Lenovo ThinkVision M14t (14" 1920×1080 panel).
+public enum DisplayResolutionPreset: String, Codable, CaseIterable, Equatable, Sendable {
+    /// Do not change macOS display mode automatically.
+    case systemDefault = "system"
+    /// 1920×1080 @ 75Hz (2x Retina 4K UHD 3840×2160 — High Frequency 75Hz + Crisp Retina).
+    case hidpi1920x1080_75hz = "1920x1080-75hz-hidpi"
+    /// 1920×1080 @ 60Hz (2x Retina 4K UHD 3840×2160 — Crisp Retina Full HD).
+    case hidpi1920x1080_60hz = "1920x1080-60hz-hidpi"
+    /// 1600×900 @ 60Hz (2x Retina QHD+ 3200×1800 — Balanced 16:9 Desktop Sizing).
+    case hidpi1600x900 = "1600x900-hidpi"
+    /// 1344×756 @ 60Hz (2x Retina 2.6K 2688×1512 — Comfortable 16:9 Sizing).
+    case hidpi1344x756 = "1344x756-hidpi"
+    /// 1280×720 @ 60Hz (2x Retina 2.5K 2560×1440 — Large 16:9 Sizing, Windows 150%).
+    case hidpi1280x720 = "1280x720-hidpi"
+    /// Native `1024×576 @ 2x HiDPI` (`2048×1152` Retina framebuffer).
+    case hidpi1024x576 = "1024x576-hidpi"
+    /// Native `960×540 @ 2x HiDPI` (`1920×1080` 2:1 Retina framebuffer).
+    case hidpi960x540 = "960x540-hidpi"
+    /// Native `1920×1080 @ 75Hz` (`1x` Full HD — 75Hz High Frequency, maximum space).
+    case native1080p_75hz = "1920x1080-75hz"
+    /// Native `1920×1080 @ 60Hz` (`1x` Full HD — 60Hz 1:1 pixels).
+    case native1080p = "1920x1080"
+    /// Legacy alias for 1600×900 HiDPI.
+    case scaled1600x900 = "1600x900"
+    /// Legacy alias for 1344×756 HiDPI.
+    case scaled1344x756 = "1344x756"
+
+    public var label: String {
+        switch self {
+        case .systemDefault:          return "Keep macOS System Setting"
+        case .hidpi1920x1080_75hz:    return "1920×1080 @ 75Hz (2x Retina 4K — 75Hz Ultra Smooth)"
+        case .hidpi1920x1080_60hz:    return "1920×1080 @ 60Hz (2x Retina 4K — Crisp Full HD)"
+        case .hidpi1600x900,
+             .scaled1600x900:         return "1600×900 @ 60Hz (2x Retina QHD+ — Balanced 16:9)"
+        case .hidpi1344x756,
+             .scaled1344x756:         return "1344×756 @ 60Hz (2x Retina 2.6K — Comfortable 16:9)"
+        case .hidpi1280x720:          return "1280×720 @ 60Hz (2x Retina 2.5K — Large 16:9)"
+        case .hidpi1024x576:          return "1024×576 @ 60Hz (2x Retina 2K)"
+        case .hidpi960x540:           return "960×540 @ 60Hz (2x Retina 1080p)"
+        case .native1080p_75hz:       return "1920×1080 @ 75Hz (1x Full HD 75Hz — Max Space)"
+        case .native1080p:            return "1920×1080 @ 60Hz (1x Full HD — Max Space)"
+        }
+    }
+
+    /// Clean unique list of presets to present in UI pickers (excluding legacy aliases).
+    public static var selectablePresets: [DisplayResolutionPreset] {
+        [
+            .systemDefault,
+            .hidpi1920x1080_75hz,
+            .hidpi1920x1080_60hz,
+            .hidpi1600x900,
+            .hidpi1344x756,
+            .hidpi1280x720,
+            .hidpi1024x576,
+            .hidpi960x540,
+            .native1080p_75hz,
+            .native1080p
+        ]
+    }
+}
+
 /// Runtime configuration for the M14t touch & gesture driver.
 public struct TouchConfig: Equatable, Sendable {
 
     public var displayIndex: Int
     public var autoDetectM14tDisplay: Bool
+    public var displayResolutionPreset: DisplayResolutionPreset
     public var invertX: Bool
     public var invertY: Bool
     public var debugMode: Bool
@@ -33,7 +122,12 @@ public struct TouchConfig: Equatable, Sendable {
     public var pinchToZoom: Bool
     public var threeFingerSwipes: Bool
     public var naturalSpacesSwipe: Bool
+
+    // Smart Pencil (Active Stylus) Settings
     public var stylusEnabled: Bool
+    public var barrelButtonAction: StylusButtonAction
+    public var secondaryBarrelButtonAction: StylusButtonAction
+    public var palmRejectionWhileStylusInRange: Bool
 
     // Manual calibration overrides
     public var manualXMin: Double?
@@ -44,6 +138,7 @@ public struct TouchConfig: Equatable, Sendable {
     public init(
         displayIndex: Int = 1,
         autoDetectM14tDisplay: Bool = true,
+        displayResolutionPreset: DisplayResolutionPreset = .systemDefault,
         invertX: Bool = false,
         invertY: Bool = false,
         debugMode: Bool = false,
@@ -62,6 +157,9 @@ public struct TouchConfig: Equatable, Sendable {
         threeFingerSwipes: Bool = true,
         naturalSpacesSwipe: Bool = true,
         stylusEnabled: Bool = true,
+        barrelButtonAction: StylusButtonAction = .rightClick,
+        secondaryBarrelButtonAction: StylusButtonAction = .eraser,
+        palmRejectionWhileStylusInRange: Bool = true,
         manualXMin: Double? = nil,
         manualXMax: Double? = nil,
         manualYMin: Double? = nil,
@@ -69,6 +167,7 @@ public struct TouchConfig: Equatable, Sendable {
     ) {
         self.displayIndex = displayIndex
         self.autoDetectM14tDisplay = autoDetectM14tDisplay
+        self.displayResolutionPreset = displayResolutionPreset
         self.invertX = invertX
         self.invertY = invertY
         self.debugMode = debugMode
@@ -87,6 +186,9 @@ public struct TouchConfig: Equatable, Sendable {
         self.threeFingerSwipes = threeFingerSwipes
         self.naturalSpacesSwipe = naturalSpacesSwipe
         self.stylusEnabled = stylusEnabled
+        self.barrelButtonAction = barrelButtonAction
+        self.secondaryBarrelButtonAction = secondaryBarrelButtonAction
+        self.palmRejectionWhileStylusInRange = palmRejectionWhileStylusInRange
         self.manualXMin = manualXMin
         self.manualXMax = manualXMax
         self.manualYMin = manualYMin

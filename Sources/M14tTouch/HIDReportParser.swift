@@ -51,34 +51,57 @@ public struct TouchFrame: Equatable, Sendable {
     }
 }
 
-/// Active stylus / pen sample decoded from `ReportID 0x06`.
+/// Active stylus / pen sample decoded from `ReportID 0x06` or `0x0B`.
 public struct StylusSample: Equatable, Sendable {
     public let tipSwitch: Bool
+    /// Bottom side button on the Lenovo ThinkVision M14t Active Pen (`Usage 0x44`).
     public let barrelSwitch: Bool
+    /// Top side button on the Lenovo ThinkVision M14t Active Pen (`Usage 0x5A`).
+    public let secondaryBarrelSwitch: Bool
+    /// Asserted by Wacom firmware when the pen tip touches the glass while the top button (`Eraser`) is held (`Usage 0x45`).
     public let eraser: Bool
+    /// Asserted by Wacom firmware while hovering with the top button (`Eraser`) held (`Usage 0x3C`).
     public let invert: Bool
     public let inRange: Bool
     public let rawX: Double
     public let rawY: Double
     public let normalizedX: Double
     public let normalizedY: Double
-    /// Normalized pen tip pressure in `0...1`.
+    /// Normalized pen tip pressure in `0...1` (4096 hardware levels).
     public let pressure: Double
+    /// Normalized horizontal pen tilt in `-1...1` (`-90°...+90°`).
+    public let tiltX: Double
+    /// Normalized vertical pen tilt in `-1...1` (`-90°...+90°`).
+    public let tiltY: Double
     public let timestamp: TimeInterval
+
+    /// Whether the top barrel button (or eraser/invert mode) is currently engaged.
+    public var isTopButtonActive: Bool {
+        secondaryBarrelSwitch || eraser || invert
+    }
+
+    /// Whether the physical pen tip is touching the glass (Wacom sets `eraser` instead of `tipSwitch` when top button is held).
+    public var isTipTouching: Bool {
+        tipSwitch || eraser
+    }
 
     public init(
         tipSwitch: Bool,
         barrelSwitch: Bool,
+        secondaryBarrelSwitch: Bool = false,
         eraser: Bool,
         invert: Bool,
         inRange: Bool,
         rawX: Double,
         rawY: Double,
         pressure: Double,
+        tiltX: Double = 0.0,
+        tiltY: Double = 0.0,
         timestamp: TimeInterval
     ) {
         self.tipSwitch = tipSwitch
         self.barrelSwitch = barrelSwitch
+        self.secondaryBarrelSwitch = secondaryBarrelSwitch
         self.eraser = eraser
         self.invert = invert
         self.inRange = inRange
@@ -87,6 +110,8 @@ public struct StylusSample: Equatable, Sendable {
         self.normalizedX = min(max(rawX / HID.Hardware.penMaxX, 0.0), 1.0)
         self.normalizedY = min(max(rawY / HID.Hardware.penMaxY, 0.0), 1.0)
         self.pressure = min(max(pressure, 0.0), 1.0)
+        self.tiltX = min(max(tiltX, -1.0), 1.0)
+        self.tiltY = min(max(tiltY, -1.0), 1.0)
         self.timestamp = timestamp
     }
 }
@@ -103,7 +128,7 @@ public enum ParsedHIDReport: Equatable, Sendable {
 /// Handles:
 /// - `ReportID 0x0C` (40-byte 5-finger multi-touch packet, plus multi-packet continuation frames when >5 fingers touch)
 /// - `ReportID 0x20` (11-byte secondary interface single-slot touch packet)
-/// - `ReportID 0x06` (Active Wacom pen/stylus packet)
+/// - `ReportID 0x06` / `0x0B` (Active Wacom pen/stylus packet with 2 barrel buttons, 4096 pressure levels, and X/Y tilt)
 /// - `ReportID 0x01` (Ignored legacy mouse fallback packet)
 public struct HIDReportParser {
 
@@ -127,7 +152,7 @@ public struct HIDReportParser {
             guard !hasSeenPrimaryMultiTouch else { return .ignored }
             return parseSecondaryTouchReport0x20(bytes: bytes, timestamp: timestamp)
 
-        case HID.ReportID.stylus:
+        case HID.ReportID.stylus, HID.ReportID.stylusVendor:
             return parseStylusReport0x06(bytes: bytes, timestamp: timestamp)
 
         case HID.ReportID.mouseFallback:
@@ -248,15 +273,18 @@ public struct HIDReportParser {
         return .touchFrame(TouchFrame(contacts: active, scanTime: scanTime, timestamp: timestamp))
     }
 
-    // MARK: - Report 0x06 (Active Stylus / Pen, >= 8 bytes)
+    // MARK: - Report 0x06 / 0x0B (Active Stylus / Pen, >= 8 bytes)
 
     private func parseStylusReport0x06(bytes: [UInt8], timestamp: TimeInterval) -> ParsedHIDReport {
         // Layout:
-        // [0]: ReportID (0x06)
+        // [0]: ReportID (0x06 or 0x0B)
         // [1]: Flags (bit0=TipSwitch, bit1=BarrelSwitch, bit2=Eraser, bit3=Invert, bit4=SecondaryBarrel, bit5=InRange)
         // [2..3]: X (UInt16 LE, 0...30931)
         // [4..5]: Y (UInt16 LE, 0...17399)
         // [6..7]: TipPressure (UInt16 LE, 0...4095)
+        // [8..15]: Transducer serial & battery (optional in full 18-byte report)
+        // [16]: X Tilt (Int8, -90...90 degrees)
+        // [17]: Y Tilt (Int8, -90...90 degrees)
         guard bytes.count >= 8 else { return .ignored }
 
         let flags = bytes[1]
@@ -264,21 +292,34 @@ public struct HIDReportParser {
         let barrelSwitch = (flags & 0x02) != 0
         let eraser = (flags & 0x04) != 0
         let invert = (flags & 0x08) != 0
+        let secondaryBarrelSwitch = (flags & 0x10) != 0
         let inRange = (flags & 0x20) != 0
 
         let rawX = Double(Self.readUInt16LE(bytes, offset: 2))
         let rawY = Double(Self.readUInt16LE(bytes, offset: 4))
         let rawPressure = Double(Self.readUInt16LE(bytes, offset: 6))
 
+        var tiltX = 0.0
+        var tiltY = 0.0
+        if bytes.count >= 18 {
+            let degX = Double(Int8(bitPattern: bytes[16]))
+            let degY = Double(Int8(bitPattern: bytes[17]))
+            tiltX = min(max(degX / 90.0, -1.0), 1.0)
+            tiltY = min(max(degY / 90.0, -1.0), 1.0)
+        }
+
         let sample = StylusSample(
             tipSwitch: tipSwitch,
             barrelSwitch: barrelSwitch,
+            secondaryBarrelSwitch: secondaryBarrelSwitch,
             eraser: eraser,
             invert: invert,
             inRange: inRange,
             rawX: rawX,
             rawY: rawY,
             pressure: rawPressure / HID.Hardware.penMaxPressure,
+            tiltX: tiltX,
+            tiltY: tiltY,
             timestamp: timestamp
         )
         return .stylus(sample)

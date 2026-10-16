@@ -30,6 +30,8 @@ public enum HID {
         public static let mouseFallback: UInt8 = 0x01
         /// Active Pen / Stylus report (`X: 0...30931`, `Y: 0...17399`, `Pressure: 0...4095`).
         public static let stylus: UInt8 = 0x06
+        /// Wacom vendor-defined Active Stylus report (`0xFF11:0x02`, same binary layout as `0x06`).
+        public static let stylusVendor: UInt8 = 0x0B
         /// Primary 5-slot Multi-Touch finger report (40 bytes, `X: 0...12372`, `Y: 0...6960`).
         public static let multiTouch: UInt8 = 0x0C
         /// Primary Device Configuration feature report (`InputMode`, `SurfaceSwitch`).
@@ -44,6 +46,7 @@ public enum HID {
         case genericDesktop = 0x01
         case button         = 0x09
         case digitizer      = 0x0D
+        case wacomVendor    = 0xFF11
     }
 
     public enum GenericDesktop: UInt32 {
@@ -54,24 +57,29 @@ public enum HID {
     }
 
     public enum Digitizer: UInt32 {
-        case pen               = 0x02
-        case touchScreen       = 0x04
-        case deviceConfig      = 0x0E
-        case stylus            = 0x20
-        case finger            = 0x22
-        case deviceSettings    = 0x23
-        case tipPressure       = 0x30
-        case inRange           = 0x32
-        case invert            = 0x3C
-        case tipSwitch         = 0x42
-        case barrelSwitch      = 0x44
-        case eraser            = 0x45
-        case confidence        = 0x47
-        case contactIdentifier = 0x51
-        case inputMode         = 0x52
-        case surfaceSwitch     = 0x53
-        case contactCount      = 0x54
-        case contactCountMax   = 0x55
-        case scanTime          = 0x56
+        case pen                     = 0x02
+        case touchScreen             = 0x04
+        case deviceConfig            = 0x0E
+        case stylus                  = 0x20
+        case finger                  = 0x22
+        case deviceSettings          = 0x23
+        case tipPressure             = 0x30
+        case inRange                 = 0x32
+        case batteryStrength         = 0x3B
+        case invert                  = 0x3C
+        case xTilt                   = 0x3D
+        case yTilt                   = 0x3E
+        case tipSwitch               = 0x42
+        case barrelSwitch            = 0x44
+        case eraser                  = 0x45
+        case confidence              = 0x47
+        case contactIdentifier       = 0x51
+        case inputMode               = 0x52
+        case surfaceSwitch           = 0x53
+        case contactCount            = 0x54
+        case contactCountMax         = 0x55
+        case scanTime                = 0x56
+        case secondaryBarrelSwitch   = 0x5A
+        case transducerSerialNumber  = 0x5B
     }
 }

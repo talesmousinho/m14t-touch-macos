@@ -390,6 +390,142 @@ final class GestureEngineTests: XCTestCase {
         )
         XCTAssertEqual(swipeUp, [.systemGesture(.missionControl)])
     }
+
+    func testSmartPencilHoverPressureTiltAndBothBarrelButtons() {
+        let engine = GestureEngine(config: TouchConfig(
+            barrelButtonAction: .rightClick,
+            secondaryBarrelButtonAction: .eraser,
+            palmRejectionWhileStylusInRange: true
+        ))
+        let pt1 = CGPoint(x: 300, y: 400)
+        let pt2 = CGPoint(x: 350, y: 420)
+
+        // 1. Hover in range -> emits tabletProximity(.pen) + stylusHover
+        let hover = engine.processStylus(
+            sample: StylusSample(
+                tipSwitch: false,
+                barrelSwitch: false,
+                secondaryBarrelSwitch: false,
+                eraser: false,
+                invert: false,
+                inRange: true,
+                rawX: 10000,
+                rawY: 5000,
+                pressure: 0,
+                tiltX: 0.25,
+                tiltY: -0.5,
+                timestamp: 1.0
+            ),
+            screenPoint: pt1
+        )
+        XCTAssertEqual(hover, [
+            .tabletProximity(at: pt1, inRange: true, pointerType: .pen),
+            .stylusHover(to: pt1, tiltX: 0.25, tiltY: -0.5, pointerType: .pen)
+        ])
+
+        // 2. Palm rejection: finger touch while stylus is inRange is ignored
+        let palmTouch = engine.processFrame(
+            contacts: [MappedContact(id: 1, point: CGPoint(x: 800, y: 800))],
+            timestamp: 1.02
+        )
+        XCTAssertTrue(palmTouch.isEmpty, "Palm touch must be rejected while Smart Pencil is in range")
+
+        // 3. Pen tip touches with 75% pressure -> stylusDown(.pen)
+        let tipDown = engine.processStylus(
+            sample: StylusSample(
+                tipSwitch: true,
+                barrelSwitch: false,
+                secondaryBarrelSwitch: false,
+                eraser: false,
+                invert: false,
+                inRange: true,
+                rawX: 10000,
+                rawY: 5000,
+                pressure: 0.75,
+                tiltX: 0.25,
+                tiltY: -0.5,
+                timestamp: 1.05
+            ),
+            screenPoint: pt1
+        )
+        XCTAssertEqual(tipDown, [
+            .stylusDown(at: pt1, pressure: 0.75, tiltX: 0.25, tiltY: -0.5, pointerType: .pen)
+        ])
+
+        // 4. Pen tip lifts -> stylusUp(.pen)
+        let tipUp = engine.processStylus(
+            sample: StylusSample(
+                tipSwitch: false,
+                barrelSwitch: false,
+                secondaryBarrelSwitch: false,
+                eraser: false,
+                invert: false,
+                inRange: true,
+                rawX: 10000,
+                rawY: 5000,
+                pressure: 0,
+                timestamp: 1.10
+            ),
+            screenPoint: pt1
+        )
+        XCTAssertEqual(tipUp, [.stylusUp(at: pt1, pointerType: .pen)])
+
+        // 5. Bottom barrel button pressed -> rightMouseDown, dragged -> rightMouseDragged, released -> rightMouseUp
+        let barrelDown = engine.processStylus(
+            sample: StylusSample(
+                tipSwitch: false,
+                barrelSwitch: true,
+                secondaryBarrelSwitch: false,
+                eraser: false,
+                invert: false,
+                inRange: true,
+                rawX: 10000,
+                rawY: 5000,
+                pressure: 0,
+                timestamp: 1.15
+            ),
+            screenPoint: pt1
+        )
+        XCTAssertEqual(barrelDown, [.rightMouseDown(at: pt1)])
+
+        let barrelUp = engine.processStylus(
+            sample: StylusSample(
+                tipSwitch: false,
+                barrelSwitch: false,
+                secondaryBarrelSwitch: false,
+                eraser: false,
+                invert: false,
+                inRange: true,
+                rawX: 10000,
+                rawY: 5000,
+                pressure: 0,
+                timestamp: 1.20
+            ),
+            screenPoint: pt1
+        )
+        XCTAssertEqual(barrelUp, [.rightMouseUp(at: pt1)])
+
+        // 6. Top barrel button held + tip touches (Wacom sets eraser=true, tipSwitch=false) -> switches to .eraser and draws!
+        let eraserDown = engine.processStylus(
+            sample: StylusSample(
+                tipSwitch: false,
+                barrelSwitch: false,
+                secondaryBarrelSwitch: true,
+                eraser: true,
+                invert: true,
+                inRange: true,
+                rawX: 12000,
+                rawY: 6000,
+                pressure: 0.9,
+                timestamp: 1.25
+            ),
+            screenPoint: pt2
+        )
+        XCTAssertEqual(eraserDown, [
+            .tabletProximity(at: pt2, inRange: true, pointerType: .eraser),
+            .stylusDown(at: pt2, pressure: 0.9, tiltX: 0, tiltY: 0, pointerType: .eraser)
+        ])
+    }
 }
 
 final class ArgumentParserTests: XCTestCase {
@@ -400,6 +536,10 @@ final class ArgumentParserTests: XCTestCase {
         }
         XCTAssertEqual(config.displayIndex, 1)
         XCTAssertTrue(config.autoDetectM14tDisplay)
+        XCTAssertEqual(config.displayResolutionPreset, .systemDefault)
+        XCTAssertEqual(config.barrelButtonAction, .rightClick)
+        XCTAssertEqual(config.secondaryBarrelButtonAction, .eraser)
+        XCTAssertTrue(config.palmRejectionWhileStylusInRange)
         XCTAssertFalse(config.autoCalibrate)
         XCTAssertTrue(config.promptForAccessibility)
     }
@@ -410,6 +550,33 @@ final class ArgumentParserTests: XCTestCase {
         }
         XCTAssertEqual(config.displayIndex, 2)
         XCTAssertEqual(config.oneFingerMode, .scrollAndHoldToSelect)
+    }
+
+    func testResolutionAndSmartPencilButtonsParsed() {
+        let args = [
+            "--resolution", "1024x576-hidpi",
+            "--barrel-button", "middle",
+            "--top-button", "undo",
+            "--no-palm-rejection"
+        ]
+        guard case .run(let config) = ArgumentParser.parse(args) else {
+            return XCTFail("expected .run")
+        }
+        XCTAssertEqual(config.displayResolutionPreset, .hidpi1024x576)
+        XCTAssertEqual(config.barrelButtonAction, .middleClick)
+        XCTAssertEqual(config.secondaryBarrelButtonAction, .undo)
+        XCTAssertFalse(config.palmRejectionWhileStylusInRange)
+    }
+
+    func testSetResolutionAndListModesCommands() {
+        XCTAssertEqual(
+            ArgumentParser.parse(["--set-resolution", "960x540-hidpi"]),
+            .setResolution(.hidpi960x540)
+        )
+        XCTAssertEqual(
+            ArgumentParser.parse(["--list-modes"]),
+            .listModes
+        )
     }
 
     func testManualCalibrationFlags() {
@@ -455,12 +622,16 @@ final class PreferencesStoreTests: XCTestCase {
         let url = directory.appendingPathComponent("config.json")
         let preferences = AppPreferences(
             displayIndex: 2,
+            displayResolutionPreset: .hidpi1024x576,
             invertX: true,
             invertY: true,
             debugMode: true,
             dragThreshold: 3.5,
             runAtLogin: true,
             oneFingerMode: .scrollAndHoldToSelect,
+            barrelButtonAction: .rightClick,
+            secondaryBarrelButtonAction: .undo,
+            palmRejectionWhileStylusInRange: true,
             manualXMin: 1,
             manualXMax: 12371,
             manualYMin: 1,

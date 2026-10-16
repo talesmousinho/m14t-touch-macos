@@ -3,6 +3,7 @@ import Foundation
 public struct AppPreferences: Codable, Equatable, Sendable {
     public var displayIndex: Int
     public var autoDetectM14tDisplay: Bool
+    public var displayResolutionPreset: DisplayResolutionPreset
     public var invertX: Bool
     public var invertY: Bool
     public var debugMode: Bool
@@ -21,7 +22,12 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     public var pinchToZoom: Bool
     public var threeFingerSwipes: Bool
     public var naturalSpacesSwipe: Bool
+
+    // Smart Pencil (Active Stylus) settings
     public var stylusEnabled: Bool
+    public var barrelButtonAction: StylusButtonAction
+    public var secondaryBarrelButtonAction: StylusButtonAction
+    public var palmRejectionWhileStylusInRange: Bool
 
     public var manualXMin: Double?
     public var manualXMax: Double?
@@ -31,6 +37,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     public init(
         displayIndex: Int = 1,
         autoDetectM14tDisplay: Bool = true,
+        displayResolutionPreset: DisplayResolutionPreset = .systemDefault,
         invertX: Bool = false,
         invertY: Bool = false,
         debugMode: Bool = false,
@@ -48,6 +55,9 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         threeFingerSwipes: Bool = true,
         naturalSpacesSwipe: Bool = true,
         stylusEnabled: Bool = true,
+        barrelButtonAction: StylusButtonAction = .rightClick,
+        secondaryBarrelButtonAction: StylusButtonAction = .eraser,
+        palmRejectionWhileStylusInRange: Bool = true,
         manualXMin: Double? = nil,
         manualXMax: Double? = nil,
         manualYMin: Double? = nil,
@@ -55,6 +65,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     ) {
         self.displayIndex = displayIndex
         self.autoDetectM14tDisplay = autoDetectM14tDisplay
+        self.displayResolutionPreset = displayResolutionPreset
         self.invertX = invertX
         self.invertY = invertY
         self.debugMode = debugMode
@@ -72,6 +83,9 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         self.threeFingerSwipes = threeFingerSwipes
         self.naturalSpacesSwipe = naturalSpacesSwipe
         self.stylusEnabled = stylusEnabled
+        self.barrelButtonAction = barrelButtonAction
+        self.secondaryBarrelButtonAction = secondaryBarrelButtonAction
+        self.palmRejectionWhileStylusInRange = palmRejectionWhileStylusInRange
         self.manualXMin = manualXMin
         self.manualXMax = manualXMax
         self.manualYMin = manualYMin
@@ -83,6 +97,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         displayIndex = try c.decodeIfPresent(Int.self, forKey: .displayIndex) ?? 1
         autoDetectM14tDisplay = try c.decodeIfPresent(Bool.self, forKey: .autoDetectM14tDisplay) ?? true
+        displayResolutionPreset = try c.decodeIfPresent(DisplayResolutionPreset.self, forKey: .displayResolutionPreset) ?? .systemDefault
         invertX = try c.decodeIfPresent(Bool.self, forKey: .invertX) ?? false
         invertY = try c.decodeIfPresent(Bool.self, forKey: .invertY) ?? false
         debugMode = try c.decodeIfPresent(Bool.self, forKey: .debugMode) ?? false
@@ -100,6 +115,9 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         threeFingerSwipes = try c.decodeIfPresent(Bool.self, forKey: .threeFingerSwipes) ?? true
         naturalSpacesSwipe = try c.decodeIfPresent(Bool.self, forKey: .naturalSpacesSwipe) ?? true
         stylusEnabled = try c.decodeIfPresent(Bool.self, forKey: .stylusEnabled) ?? true
+        barrelButtonAction = try c.decodeIfPresent(StylusButtonAction.self, forKey: .barrelButtonAction) ?? .rightClick
+        secondaryBarrelButtonAction = try c.decodeIfPresent(StylusButtonAction.self, forKey: .secondaryBarrelButtonAction) ?? .eraser
+        palmRejectionWhileStylusInRange = try c.decodeIfPresent(Bool.self, forKey: .palmRejectionWhileStylusInRange) ?? true
         manualXMin = try c.decodeIfPresent(Double.self, forKey: .manualXMin)
         manualXMax = try c.decodeIfPresent(Double.self, forKey: .manualXMax)
         manualYMin = try c.decodeIfPresent(Double.self, forKey: .manualYMin)
@@ -110,6 +128,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         TouchConfig(
             displayIndex: displayIndex,
             autoDetectM14tDisplay: autoDetectM14tDisplay,
+            displayResolutionPreset: displayResolutionPreset,
             invertX: invertX,
             invertY: invertY,
             debugMode: debugMode,
@@ -126,6 +145,9 @@ public struct AppPreferences: Codable, Equatable, Sendable {
             threeFingerSwipes: threeFingerSwipes,
             naturalSpacesSwipe: naturalSpacesSwipe,
             stylusEnabled: stylusEnabled,
+            barrelButtonAction: barrelButtonAction,
+            secondaryBarrelButtonAction: secondaryBarrelButtonAction,
+            palmRejectionWhileStylusInRange: palmRejectionWhileStylusInRange,
             manualXMin: manualXMin,
             manualXMax: manualXMax,
             manualYMin: manualYMin,
@@ -137,6 +159,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         self.init(
             displayIndex: touchConfig.displayIndex,
             autoDetectM14tDisplay: touchConfig.autoDetectM14tDisplay,
+            displayResolutionPreset: touchConfig.displayResolutionPreset,
             invertX: touchConfig.invertX,
             invertY: touchConfig.invertY,
             debugMode: touchConfig.debugMode,
@@ -154,6 +177,9 @@ public struct AppPreferences: Codable, Equatable, Sendable {
             threeFingerSwipes: touchConfig.threeFingerSwipes,
             naturalSpacesSwipe: touchConfig.naturalSpacesSwipe,
             stylusEnabled: touchConfig.stylusEnabled,
+            barrelButtonAction: touchConfig.barrelButtonAction,
+            secondaryBarrelButtonAction: touchConfig.secondaryBarrelButtonAction,
+            palmRejectionWhileStylusInRange: touchConfig.palmRejectionWhileStylusInRange,
             manualXMin: touchConfig.manualXMin,
             manualXMax: touchConfig.manualXMax,
             manualYMin: touchConfig.manualYMin,

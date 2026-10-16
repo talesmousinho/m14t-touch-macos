@@ -80,6 +80,23 @@ public final class MouseEmitter {
         case let .rightMouseUp(point):
             postMouse(type: .rightMouseUp, button: .right, at: point, clickCount: 1)
 
+        case let .middleClick(point):
+            stopMomentum()
+            postMouse(type: .mouseMoved, button: .left, at: point, clickCount: 0)
+            postMouse(type: .otherMouseDown, button: .center, at: point, clickCount: 1)
+            postMouse(type: .otherMouseUp, button: .center, at: point, clickCount: 1)
+
+        case let .middleMouseDown(point):
+            stopMomentum()
+            postMouse(type: .mouseMoved, button: .left, at: point, clickCount: 0)
+            postMouse(type: .otherMouseDown, button: .center, at: point, clickCount: 1)
+
+        case let .middleMouseDragged(point):
+            postMouse(type: .otherMouseDragged, button: .center, at: point, clickCount: 1)
+
+        case let .middleMouseUp(point):
+            postMouse(type: .otherMouseUp, button: .center, at: point, clickCount: 1)
+
         case let .scroll(point, deltaX, deltaY, phase):
             postScroll(at: point, deltaX: deltaX, deltaY: deltaY, phase: phase)
 
@@ -90,6 +107,64 @@ public final class MouseEmitter {
         case let .systemGesture(gesture):
             stopMomentum()
             postSystemGesture(gesture)
+
+        case let .tabletProximity(point, inRange, pointerType):
+            postTabletProximity(at: point, inRange: inRange, pointerType: pointerType)
+
+        case let .stylusHover(point, tiltX, tiltY, pointerType):
+            stopMomentum()
+            postStylusMouse(
+                type: .mouseMoved,
+                at: point,
+                pressure: 0.0,
+                tiltX: tiltX,
+                tiltY: tiltY,
+                pointerType: pointerType
+            )
+
+        case let .stylusDown(point, pressure, tiltX, tiltY, pointerType):
+            stopMomentum()
+            postStylusMouse(
+                type: .mouseMoved,
+                at: point,
+                pressure: 0.0,
+                tiltX: tiltX,
+                tiltY: tiltY,
+                pointerType: pointerType
+            )
+            postStylusMouse(
+                type: .leftMouseDown,
+                at: point,
+                pressure: pressure,
+                tiltX: tiltX,
+                tiltY: tiltY,
+                pointerType: pointerType
+            )
+
+        case let .stylusDragged(point, pressure, tiltX, tiltY, pointerType):
+            stopMomentum()
+            postStylusMouse(
+                type: .leftMouseDragged,
+                at: point,
+                pressure: pressure,
+                tiltX: tiltX,
+                tiltY: tiltY,
+                pointerType: pointerType
+            )
+
+        case let .stylusUp(point, pointerType):
+            postStylusMouse(
+                type: .leftMouseUp,
+                at: point,
+                pressure: 0.0,
+                tiltX: 0.0,
+                tiltY: 0.0,
+                pointerType: pointerType
+            )
+
+        case .sendUndoShortcut:
+            stopMomentum()
+            postKeyShortcut(virtualKey: 6, flags: .maskCommand) // ⌘Z
         }
     }
 
@@ -130,20 +205,79 @@ public final class MouseEmitter {
         event.post(tap: .cghidEventTap)
     }
 
-    // MARK: - Smooth 2D Trackpad Scroll + Inertial Momentum
+    // MARK: - Native Wacom / Smart Pencil Tablet Event Synthesis
+
+    private func postTabletProximity(at point: CGPoint, inRange: Bool, pointerType: StylusPointerType) {
+        guard let event = CGEvent(source: nil) else { return }
+        event.type = .tabletProximity
+        event.location = point
+        event.setIntegerValueField(.tabletProximityEventEnterProximity, value: inRange ? 1 : 0)
+        event.setIntegerValueField(.tabletProximityEventPointerType, value: Int64(pointerType.rawValue))
+        event.setIntegerValueField(.tabletProximityEventVendorID, value: 0x056A) // Wacom
+        event.setIntegerValueField(.tabletProximityEventCapabilityMask, value: 0x07FF)
+        event.post(tap: .cghidEventTap)
+    }
+
+    private func postStylusMouse(
+        type: CGEventType,
+        at point: CGPoint,
+        pressure: Double,
+        tiltX: Double,
+        tiltY: Double,
+        pointerType: StylusPointerType
+    ) {
+        guard let event = CGEvent(
+            mouseEventSource: nil,
+            mouseType: type,
+            mouseCursorPosition: point,
+            mouseButton: .left
+        ) else {
+            return
+        }
+
+        // kCGEventMouseSubtypeTabletPoint = 1
+        event.setIntegerValueField(.mouseEventSubtype, value: 1)
+        if type == .leftMouseDown || type == .leftMouseUp || type == .leftMouseDragged {
+            event.setIntegerValueField(.mouseEventClickState, value: 1)
+        }
+        event.setDoubleValueField(.mouseEventPressure, value: pressure)
+        event.setDoubleValueField(.tabletEventPointPressure, value: pressure)
+        event.setDoubleValueField(.tabletEventTiltX, value: tiltX)
+        event.setDoubleValueField(.tabletEventTiltY, value: tiltY)
+        event.setIntegerValueField(.tabletProximityEventPointerType, value: Int64(pointerType.rawValue))
+        event.post(tap: .cghidEventTap)
+    }
+
+    private func postKeyShortcut(virtualKey: CGKeyCode, flags: CGEventFlags) {
+        guard let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: virtualKey, keyDown: true),
+              let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: virtualKey, keyDown: false) else {
+            return
+        }
+        keyDown.flags = flags
+        keyUp.flags = flags
+        keyDown.post(tap: .cghidEventTap)
+        keyUp.post(tap: .cghidEventTap)
+    }
+
+    // MARK: - Smooth 2D Trackpad Scroll + High-Frequency Inertial Momentum
+
+    private var scrollAccumulatorX: Double = 0
+    private var scrollAccumulatorY: Double = 0
 
     private func postScroll(at point: CGPoint, deltaX: Double, deltaY: Double, phase: GesturePhase) {
         switch phase {
         case .began:
             stopMomentum()
+            scrollAccumulatorX = 0
+            scrollAccumulatorY = 0
             lastScrollVelocityX = 0
             lastScrollVelocityY = 0
             postMouse(type: .mouseMoved, button: .left, at: point, clickCount: 0)
             emitScrollPacket(at: point, dx: 0, dy: 0, scrollPhase: phase.rawValue, momentumPhase: 0)
 
         case .changed:
-            lastScrollVelocityX = 0.6 * deltaX + 0.4 * lastScrollVelocityX
-            lastScrollVelocityY = 0.6 * deltaY + 0.4 * lastScrollVelocityY
+            lastScrollVelocityX = 0.5 * deltaX + 0.5 * lastScrollVelocityX
+            lastScrollVelocityY = 0.5 * deltaY + 0.5 * lastScrollVelocityY
             emitScrollPacket(at: point, dx: deltaX, dy: deltaY, scrollPhase: phase.rawValue, momentumPhase: 0)
 
         case .ended, .cancelled:
@@ -159,8 +293,12 @@ public final class MouseEmitter {
         scrollPhase: UInt64,
         momentumPhase: UInt64
     ) {
-        let intDY = Int32(dy.rounded())
-        let intDX = Int32(dx.rounded())
+        scrollAccumulatorX += dx
+        scrollAccumulatorY += dy
+        let intDX = Int32(scrollAccumulatorX)
+        let intDY = Int32(scrollAccumulatorY)
+        scrollAccumulatorX -= Double(intDX)
+        scrollAccumulatorY -= Double(intDY)
 
         guard let event = CGEvent(
             scrollWheelEvent2Source: nil,
@@ -184,26 +322,27 @@ public final class MouseEmitter {
 
     private func startMomentumIfNeeded(at point: CGPoint, vx: Double, vy: Double) {
         stopMomentum()
-        guard hypot(vx, vy) >= 4.0 else { return }
+        guard hypot(vx, vy) >= 2.0 else { return }
 
-        var curVX = vx * 0.9
-        var curVY = vy * 0.9
+        var curVX = vx
+        var curVY = vy
         var isFirstTick = true
 
         let timer = DispatchSource.makeTimerSource(queue: .main)
-        timer.schedule(deadline: .now() + .milliseconds(16), repeating: .milliseconds(16))
+        // 8ms timer (~125 Hz) produces butter-smooth frame pacing on 60Hz and 75Hz panels
+        timer.schedule(deadline: .now() + .milliseconds(8), repeating: .milliseconds(8))
         timer.setEventHandler { [weak self] in
             guard let self else { return }
-            if hypot(curVX, curVY) < 1.0 {
-                self.emitScrollPacket(at: point, dx: 0, dy: 0, scrollPhase: 0, momentumPhase: 3)
+            if hypot(curVX, curVY) < 0.35 {
+                self.emitScrollPacket(at: point, dx: 0, dy: 0, scrollPhase: 0, momentumPhase: 4)
                 self.stopMomentum()
                 return
             }
             let mPhase: UInt64 = isFirstTick ? 1 : 2
             isFirstTick = false
-            self.emitScrollPacket(at: point, dx: curVX, dy: curVY, scrollPhase: 0, momentumPhase: mPhase)
-            curVX *= 0.88
-            curVY *= 0.88
+            self.emitScrollPacket(at: point, dx: curVX * 0.5, dy: curVY * 0.5, scrollPhase: 0, momentumPhase: mPhase)
+            curVX *= 0.965
+            curVY *= 0.965
         }
         self.momentumTimer = timer
         timer.resume()
@@ -212,6 +351,8 @@ public final class MouseEmitter {
     private func stopMomentum() {
         momentumTimer?.cancel()
         momentumTimer = nil
+        scrollAccumulatorX = 0
+        scrollAccumulatorY = 0
     }
 
     // MARK: - Native Trackpad Pinch-to-Zoom (`NSEvent.EventType.magnify`)

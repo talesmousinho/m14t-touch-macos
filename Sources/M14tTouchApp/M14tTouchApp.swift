@@ -61,9 +61,33 @@ final class SettingsModel: ObservableObject {
         do {
             try PreferencesStore.save(preferences)
             try applyRunAtLogin()
+            if preferences.displayResolutionPreset != .systemDefault {
+                _ = DisplayResolver.applyResolutionPreset(
+                    preferences.displayResolutionPreset,
+                    fallbackIndex: preferences.displayIndex,
+                    preferAutoDetectM14t: preferences.autoDetectM14tDisplay
+                )
+                refreshDisplays()
+            }
             statusMessage = "Settings saved"
         } catch {
             statusMessage = error.localizedDescription
+        }
+    }
+
+    func applyDisplayResolution() {
+        let result = DisplayResolver.applyResolutionPreset(
+            preferences.displayResolutionPreset,
+            fallbackIndex: preferences.displayIndex,
+            preferAutoDetectM14t: preferences.autoDetectM14tDisplay
+        )
+        refreshDisplays()
+        switch result {
+        case .success(let msg):
+            try? PreferencesStore.save(preferences)
+            statusMessage = msg
+        case .failure(let err):
+            statusMessage = err.localizedDescription
         }
     }
 
@@ -145,6 +169,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 16) {
                 header
                 displaySection
+                smartPencilSection
                 tabletSection
                 trackpadSection
                 helperSection
@@ -157,15 +182,15 @@ struct SettingsView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("M14t Touch 2.0")
+            Text("M14t Touch 2.1")
                 .font(.system(.largeTitle, design: .rounded, weight: .bold))
-            Text("Lenovo ThinkVision M14t tablet & MacBook trackpad gesture driver")
+            Text("Lenovo ThinkVision M14t multi-touch, Smart Pencil & HiDPI display driver")
                 .foregroundStyle(.secondary)
         }
     }
 
     private var displaySection: some View {
-        GroupBox("Display Target") {
+        GroupBox("Display Target & HiDPI Scaling") {
             VStack(alignment: .leading, spacing: 10) {
                 Toggle("Automatically lock to Lenovo ThinkVision M14t display", isOn: $model.preferences.autoDetectM14tDisplay)
 
@@ -179,10 +204,56 @@ struct SettingsView: View {
                     .labelsHidden()
                 }
 
+                HStack {
+                    Text("M14t Resolution & Scaling")
+                    Picker("M14t Resolution", selection: $model.preferences.displayResolutionPreset) {
+                        ForEach(DisplayResolutionPreset.selectablePresets, id: \.self) { preset in
+                            Text(preset.label).tag(preset)
+                        }
+                    }
+                    .labelsHidden()
+                    Button("Apply Now") {
+                        model.applyDisplayResolution()
+                    }
+                }
+
                 HStack(spacing: 16) {
                     Toggle("Invert X axis", isOn: $model.preferences.invertX)
                     Toggle("Invert Y axis", isOn: $model.preferences.invertY)
-                    Toggle("Active Stylus / Pen", isOn: $model.preferences.stylusEnabled)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var smartPencilSection: some View {
+        GroupBox("Smart Pencil (Lenovo Active Pen · 4096 Pressure Levels + Tilt)") {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 16) {
+                    Toggle("Enable Smart Pencil", isOn: $model.preferences.stylusEnabled)
+                    Toggle("Palm rejection while pen is in range", isOn: $model.preferences.palmRejectionWhileStylusInRange)
+                }
+
+                HStack {
+                    Text("Bottom Barrel Button")
+                        .frame(width: 150, alignment: .leading)
+                    Picker("Bottom Barrel Button", selection: $model.preferences.barrelButtonAction) {
+                        ForEach(StylusButtonAction.allCases, id: \.self) { action in
+                            Text(action.label).tag(action)
+                        }
+                    }
+                    .labelsHidden()
+                }
+
+                HStack {
+                    Text("Top Barrel Button")
+                        .frame(width: 150, alignment: .leading)
+                    Picker("Top Barrel Button", selection: $model.preferences.secondaryBarrelButtonAction) {
+                        ForEach(StylusButtonAction.allCases, id: \.self) { action in
+                            Text(action.label).tag(action)
+                        }
+                    }
+                    .labelsHidden()
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -274,6 +345,7 @@ struct SettingsView: View {
     private func displayTitle(_ display: DisplayInfo) -> String {
         var tags: [String] = []
         if display.isM14t { tags.append("M14t") }
+        if display.isHiDPI { tags.append("2x HiDPI") }
         if display.isMain { tags.append("main") }
         let suffix = tags.isEmpty ? "" : " (\(tags.joined(separator: ", ")))"
         return "[\(display.index)] \(display.name) — \(Int(display.bounds.width))×\(Int(display.bounds.height))\(suffix)"
