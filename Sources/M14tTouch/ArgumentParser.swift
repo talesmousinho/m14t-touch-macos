@@ -9,6 +9,8 @@ public enum ArgumentParser {
         case listModes
         case setResolution(DisplayResolutionPreset)
         case resetCalibration
+        case checkPermissions
+        case requestPermissions
         case help
         case error(String)
     }
@@ -28,6 +30,8 @@ public enum ArgumentParser {
             case "--list":                 return .listDisplays
             case "--list-modes":           return .listModes
             case "--reset-calibration":    return .resetCalibration
+            case "--check-permissions":    return .checkPermissions
+            case "--request-permissions":  return .requestPermissions
 
             case "--set-resolution":
                 guard let raw = iterator.next(),
@@ -80,6 +84,8 @@ public enum ArgumentParser {
                 config.secondaryBarrelButtonAction = action
 
             case "--no-palm-rejection":    config.palmRejectionWhileStylusInRange = false
+            case "--auto-return-cursor":   config.returnCursorToMainDisplay = true
+            case "--no-auto-return-cursor": config.returnCursorToMainDisplay = false
             case "--no-natural-scroll":    config.naturalScrolling = false
             case "--no-natural-spaces":    config.naturalSpacesSwipe = false
             case "--no-pinch-zoom":        config.pinchToZoom = false
@@ -132,6 +138,8 @@ public enum ArgumentParser {
     TOUCH & TRACKPAD OPTIONS:
       --mode select|scroll      1-finger drag mode: 'select' (default, text selection & window drag)
                                 or 'scroll' (iPad-style 1-finger scroll, hold-then-drag to select)
+      --auto-return-cursor      Return pointer to main display when trackpad/mouse is used after touch
+      --no-auto-return-cursor   Keep pointer on external display after touch
       --no-natural-scroll       Invert 2-finger scroll direction
       --no-natural-spaces       Invert 3/4-finger Desktop swipe direction
       --no-pinch-zoom           Disable 2-finger pinch-to-zoom

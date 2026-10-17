@@ -59,6 +59,82 @@ public enum LaunchAgentManager {
         _ = try runLaunchctl(["bootout", guiDomain, plistURL.path], allowFailure: true)
     }
 
+    public struct HelperStatus: Equatable, Sendable {
+        public let isInstalled: Bool
+        public let isRunning: Bool
+        public let pid: Int?
+
+        public init(isInstalled: Bool, isRunning: Bool, pid: Int?) {
+            self.isInstalled = isInstalled
+            self.isRunning = isRunning
+            self.pid = pid
+        }
+    }
+
+    public static func helperStatus(plistURL: URL = Self.plistURL) -> HelperStatus {
+        let installed = isInstalled(at: plistURL)
+        var running = false
+        var foundPid: Int? = nil
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        process.arguments = ["list", label]
+        let output = Pipe()
+        process.standardOutput = output
+        process.standardError = output
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+            if process.terminationStatus == 0 {
+                let data = output.fileHandleForReading.readDataToEndOfFile()
+                if let str = String(data: data, encoding: .utf8) {
+                    let regex = try? NSRegularExpression(pattern: "\"PID\"\\s*=\\s*(\\d+);")
+                    if let match = regex?.firstMatch(in: str, range: NSRange(str.startIndex..., in: str)),
+                       let range = Range(match.range(at: 1), in: str),
+                       let parsedPid = Int(str[range]) {
+                        running = true
+                        foundPid = parsedPid
+                    }
+                }
+            }
+        } catch { }
+
+        if !running {
+            let pgrep = Process()
+            pgrep.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+            pgrep.arguments = ["-x", "m14ttouch"]
+            let pgrepOutput = Pipe()
+            pgrep.standardOutput = pgrepOutput
+            pgrep.standardError = pgrepOutput
+            if (try? pgrep.run()) != nil {
+                pgrep.waitUntilExit()
+                if pgrep.terminationStatus == 0 {
+                    let pgrepData = pgrepOutput.fileHandleForReading.readDataToEndOfFile()
+                    if let pgrepStr = String(data: pgrepData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                       let firstLine = pgrepStr.split(separator: "\n").first,
+                       let parsedPid = Int(firstLine) {
+                        running = true
+                        foundPid = parsedPid
+                    }
+                }
+            }
+        }
+
+        return HelperStatus(isInstalled: installed, isRunning: running, pid: foundPid)
+    }
+
+    public static func start(helperURL: URL, plistURL: URL = Self.plistURL) throws {
+        if !isInstalled(at: plistURL) {
+            try install(helperURL: helperURL, plistURL: plistURL)
+        }
+        try bootstrap(plistURL: plistURL)
+    }
+
+    public static func stop(plistURL: URL = Self.plistURL) throws {
+        try bootout(plistURL: plistURL)
+    }
+
     public static func restart(plistURL: URL = Self.plistURL) throws {
         if isInstalled(at: plistURL) {
             try bootstrap(plistURL: plistURL)

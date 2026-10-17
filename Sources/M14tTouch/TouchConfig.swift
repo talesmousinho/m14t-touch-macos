@@ -110,6 +110,9 @@ public struct TouchConfig: Equatable, Sendable {
     public var dragThreshold: Double
     public var autoCalibrate: Bool
 
+    // Display & Cursor Tracking Settings
+    public var returnCursorToMainDisplay: Bool
+
     // Tablet & Trackpad Gesture Settings
     public var oneFingerMode: OneFingerMode
     public var tapToClick: Bool
@@ -145,6 +148,7 @@ public struct TouchConfig: Equatable, Sendable {
         promptForAccessibility: Bool = true,
         dragThreshold: Double = 4.0,
         autoCalibrate: Bool = false,
+        returnCursorToMainDisplay: Bool = false,
         oneFingerMode: OneFingerMode = .selectAndDrag,
         tapToClick: Bool = true,
         longPressRightClick: Bool = false,
@@ -174,6 +178,7 @@ public struct TouchConfig: Equatable, Sendable {
         self.promptForAccessibility = promptForAccessibility
         self.dragThreshold = dragThreshold
         self.autoCalibrate = autoCalibrate
+        self.returnCursorToMainDisplay = returnCursorToMainDisplay
         self.oneFingerMode = oneFingerMode
         self.tapToClick = tapToClick
         self.longPressRightClick = longPressRightClick

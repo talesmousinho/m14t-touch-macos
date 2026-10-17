@@ -112,6 +112,17 @@ case .resetCalibration:
     }
     exit(0)
 
+case .checkPermissions:
+    let ax = AXIsProcessTrusted()
+    print("{\"accessibility\": \(ax)}")
+    exit(0)
+
+case .requestPermissions:
+    let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
+    let ax = AXIsProcessTrustedWithOptions(options)
+    print("{\"accessibility\": \(ax)}")
+    exit(0)
+
 case .error(let message):
     print("❌ \(message)")
     print(ArgumentParser.usageText)

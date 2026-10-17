@@ -9,6 +9,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     public var debugMode: Bool
     public var dragThreshold: Double
     public var runAtLogin: Bool
+    public var returnCursorToMainDisplay: Bool
 
     // Tablet & Trackpad settings
     public var oneFingerMode: OneFingerMode
@@ -43,6 +44,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         debugMode: Bool = false,
         dragThreshold: Double = 4.0,
         runAtLogin: Bool = false,
+        returnCursorToMainDisplay: Bool = false,
         oneFingerMode: OneFingerMode = .selectAndDrag,
         tapToClick: Bool = true,
         longPressRightClick: Bool = false,
@@ -71,6 +73,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         self.debugMode = debugMode
         self.dragThreshold = dragThreshold
         self.runAtLogin = runAtLogin
+        self.returnCursorToMainDisplay = returnCursorToMainDisplay
         self.oneFingerMode = oneFingerMode
         self.tapToClick = tapToClick
         self.longPressRightClick = longPressRightClick
@@ -103,6 +106,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         debugMode = try c.decodeIfPresent(Bool.self, forKey: .debugMode) ?? false
         dragThreshold = try c.decodeIfPresent(Double.self, forKey: .dragThreshold) ?? 4.0
         runAtLogin = try c.decodeIfPresent(Bool.self, forKey: .runAtLogin) ?? false
+        returnCursorToMainDisplay = try c.decodeIfPresent(Bool.self, forKey: .returnCursorToMainDisplay) ?? false
         oneFingerMode = try c.decodeIfPresent(OneFingerMode.self, forKey: .oneFingerMode) ?? .selectAndDrag
         tapToClick = try c.decodeIfPresent(Bool.self, forKey: .tapToClick) ?? true
         longPressRightClick = try c.decodeIfPresent(Bool.self, forKey: .longPressRightClick) ?? false
@@ -133,6 +137,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
             invertY: invertY,
             debugMode: debugMode,
             dragThreshold: dragThreshold,
+            returnCursorToMainDisplay: returnCursorToMainDisplay,
             oneFingerMode: oneFingerMode,
             tapToClick: tapToClick,
             longPressRightClick: longPressRightClick,
@@ -165,6 +170,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
             debugMode: touchConfig.debugMode,
             dragThreshold: touchConfig.dragThreshold,
             runAtLogin: runAtLogin,
+            returnCursorToMainDisplay: touchConfig.returnCursorToMainDisplay,
             oneFingerMode: touchConfig.oneFingerMode,
             tapToClick: touchConfig.tapToClick,
             longPressRightClick: touchConfig.longPressRightClick,
@@ -215,3 +221,44 @@ public enum PreferencesStore {
         (try? FileManager.default.removeItem(at: url)) != nil
     }
 }
+
+public struct DaemonState: Codable, Sendable, Equatable {
+    public var pid: Int
+    public var isAccessibilityTrusted: Bool
+    public var isInputMonitoringTrusted: Bool
+    public var binaryPath: String
+    public var timestamp: TimeInterval
+
+    public init(
+        pid: Int,
+        isAccessibilityTrusted: Bool,
+        isInputMonitoringTrusted: Bool,
+        binaryPath: String,
+        timestamp: TimeInterval = Date().timeIntervalSince1970
+    ) {
+        self.pid = pid
+        self.isAccessibilityTrusted = isAccessibilityTrusted
+        self.isInputMonitoringTrusted = isInputMonitoringTrusted
+        self.binaryPath = binaryPath
+        self.timestamp = timestamp
+    }
+}
+
+public enum DaemonStateStore {
+    public static let url = PreferencesStore.directoryURL.appendingPathComponent("daemon_state.json")
+
+    public static func load(from url: URL = Self.url) -> DaemonState? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return try? JSONDecoder().decode(DaemonState.self, from: data)
+    }
+
+    public static func save(_ state: DaemonState, to url: URL = Self.url) {
+        let directory = url.deletingLastPathComponent()
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let encoder = JSONEncoder()
+        if let data = try? encoder.encode(state) {
+            try? data.write(to: url, options: .atomic)
+        }
+    }
+}
+

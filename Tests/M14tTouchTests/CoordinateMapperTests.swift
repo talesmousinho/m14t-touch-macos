@@ -575,6 +575,14 @@ final class ArgumentParserTests: XCTestCase {
             ArgumentParser.parse(["--list-modes"]),
             .listModes
         )
+        XCTAssertEqual(
+            ArgumentParser.parse(["--check-permissions"]),
+            .checkPermissions
+        )
+        XCTAssertEqual(
+            ArgumentParser.parse(["--request-permissions"]),
+            .requestPermissions
+        )
     }
 
     func testManualCalibrationFlags() {

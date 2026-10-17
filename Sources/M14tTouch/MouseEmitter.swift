@@ -168,6 +168,10 @@ public final class MouseEmitter {
         }
     }
 
+    /// Magic token written into `CGEventField.eventSourceUserData` so our driver
+    /// can distinguish synthetic touch events from physical mouse/trackpad events.
+    public static let syntheticEventUserData: Int64 = 0x4D313454 // "M14T" in ASCII hex
+
     /// Direct mouse event poster (`mouseEventSource: nil` so macOS WindowServer
     /// always shows and moves the visible cursor arrow without suppression).
     public func post(_ type: CGEventType, at point: CGPoint) {
@@ -196,6 +200,7 @@ public final class MouseEmitter {
             return
         }
 
+        event.setIntegerValueField(.eventSourceUserData, value: Self.syntheticEventUserData)
         if clickCount > 0 {
             event.setIntegerValueField(.mouseEventClickState, value: Int64(clickCount))
         }
@@ -211,6 +216,7 @@ public final class MouseEmitter {
         guard let event = CGEvent(source: nil) else { return }
         event.type = .tabletProximity
         event.location = point
+        event.setIntegerValueField(.eventSourceUserData, value: Self.syntheticEventUserData)
         event.setIntegerValueField(.tabletProximityEventEnterProximity, value: inRange ? 1 : 0)
         event.setIntegerValueField(.tabletProximityEventPointerType, value: Int64(pointerType.rawValue))
         event.setIntegerValueField(.tabletProximityEventVendorID, value: 0x056A) // Wacom
@@ -236,6 +242,7 @@ public final class MouseEmitter {
         }
 
         // kCGEventMouseSubtypeTabletPoint = 1
+        event.setIntegerValueField(.eventSourceUserData, value: Self.syntheticEventUserData)
         event.setIntegerValueField(.mouseEventSubtype, value: 1)
         if type == .leftMouseDown || type == .leftMouseUp || type == .leftMouseDragged {
             event.setIntegerValueField(.mouseEventClickState, value: 1)
@@ -253,6 +260,8 @@ public final class MouseEmitter {
               let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: virtualKey, keyDown: false) else {
             return
         }
+        keyDown.setIntegerValueField(.eventSourceUserData, value: Self.syntheticEventUserData)
+        keyUp.setIntegerValueField(.eventSourceUserData, value: Self.syntheticEventUserData)
         keyDown.flags = flags
         keyUp.flags = flags
         keyDown.post(tap: .cghidEventTap)
@@ -310,6 +319,7 @@ public final class MouseEmitter {
         ) else { return }
 
         event.location = point
+        event.setIntegerValueField(.eventSourceUserData, value: Self.syntheticEventUserData)
         event.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
         event.setIntegerValueField(.scrollWheelEventPointDeltaAxis1, value: Int64(intDY))
         event.setIntegerValueField(.scrollWheelEventPointDeltaAxis2, value: Int64(intDX))
@@ -367,6 +377,7 @@ public final class MouseEmitter {
 
         zoomEvent.type = gestureType
         zoomEvent.location = point
+        zoomEvent.setIntegerValueField(.eventSourceUserData, value: Self.syntheticEventUserData)
 
         // Native macOS trackpad pinch-to-zoom CoreGraphics fields:
         // Field 55:  kCGSEventTypeField = 29 (NSEventTypeGesture)

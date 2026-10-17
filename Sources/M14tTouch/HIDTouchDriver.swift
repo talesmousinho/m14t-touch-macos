@@ -132,8 +132,8 @@ public final class HIDTouchDriver {
             log("✅ Listening for M14t multi-touch & Smart Pencil events…")
         } else {
             log("⚠️  IOHIDManagerOpen returned \(String(format: "0x%08X", UInt32(bitPattern: result)))")
-            log("   Grant 'Input Monitoring' in System Settings → Privacy & Security → Input Monitoring.")
         }
+        updateDaemonState()
     }
 
     public func stop() {
@@ -157,14 +157,30 @@ public final class HIDTouchDriver {
 
     // MARK: - Accessibility Permission Monitor
 
+    private func updateDaemonState() {
+        let trusted = AXIsProcessTrusted()
+        let binaryPath = CommandLine.arguments.first ?? "m14ttouch"
+        let state = DaemonState(
+            pid: Int(ProcessInfo.processInfo.processIdentifier),
+            isAccessibilityTrusted: trusted,
+            isInputMonitoringTrusted: true,
+            binaryPath: binaryPath
+        )
+        DaemonStateStore.save(state)
+    }
+
     private func startPermissionMonitor() {
         isAccessibilityTrusted = AXIsProcessTrusted()
+        updateDaemonState()
+
         if isAccessibilityTrusted {
             log("✅ Accessibility permission active")
         } else {
             log("⏳ Waiting for Accessibility permission in System Settings → Privacy & Security → Accessibility…")
-            let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
-            _ = AXIsProcessTrustedWithOptions(options)
+            if config.promptForAccessibility {
+                let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
+                _ = AXIsProcessTrustedWithOptions(options)
+            }
         }
 
         let timer = DispatchSource.makeTimerSource(queue: .main)
@@ -172,6 +188,8 @@ public final class HIDTouchDriver {
         timer.setEventHandler { [weak self] in
             guard let self else { return }
             let trustedNow = AXIsProcessTrusted()
+            self.updateDaemonState()
+
             if trustedNow && !self.isAccessibilityTrusted {
                 self.isAccessibilityTrusted = true
                 self.log("✅ Accessibility permission granted — pointer & trackpad gestures active!")
