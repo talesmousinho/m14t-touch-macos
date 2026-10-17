@@ -87,11 +87,11 @@ hdiutil create \
     -format UDZO \
     "$DMG_OUTPUT" >/dev/null
 
-# 6. Sign DMG if signing identity is available
+# 6. Sign DMG only if a real Developer ID Application identity is available
+# (Never ad-hoc sign a .dmg with `codesign --sign -`; an ad-hoc code directory on a disk image
+# causes macOS Gatekeeper / DiskImages-helper to reject mounting the .dmg itself.)
 if [[ -n "${DEVELOPER_ID_APP:-}" ]]; then
     codesign --force --sign "$DEVELOPER_ID_APP" "$DMG_OUTPUT" >/dev/null
-else
-    codesign --force --sign - "$DMG_OUTPUT" >/dev/null 2>&1 || true
 fi
 
 # Clean up staging
