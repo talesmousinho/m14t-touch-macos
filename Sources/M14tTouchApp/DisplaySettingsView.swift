@@ -14,6 +14,7 @@ public struct DisplaySettingsView: View {
                     displayIndex: $model.preferences.displayIndex,
                     displays: model.displays,
                     isM14tConnected: model.isM14tConnected,
+                    isRefreshing: model.isRefreshingDisplays,
                     onRefresh: model.refreshDisplays
                 )
 
@@ -46,6 +47,7 @@ private struct DisplayTargetCard: View {
     @Binding var displayIndex: Int
     let displays: [DisplayInfo]
     let isM14tConnected: Bool
+    let isRefreshing: Bool
     let onRefresh: () -> Void
 
     var body: some View {
@@ -92,9 +94,9 @@ private struct DisplayTargetCard: View {
                             .disabled(autoDetect && isM14tConnected)
 
                             GlassActionButton(isProminent: false, action: onRefresh) {
-                                Text("Refresh")
+                                Label("Refresh", systemImage: "arrow.clockwise")
                             }
-                            .controlSize(.regular)
+                            .disabled(isRefreshing)
                         }
                     }
                 }

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PKG_PATH="${1:-$ROOT/.build/artifacts/M14tTouch.pkg}"
+PKG_PATH="${1:-$ROOT/.build/artifacts/M14tTouch-Installer.pkg}"
 
 if [[ ! -f "$PKG_PATH" ]]; then
     echo "Package not found: $PKG_PATH" >&2

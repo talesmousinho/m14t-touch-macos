@@ -8,9 +8,9 @@
 **Compatible with Lenovo's ThinkVision M14t on macOS.**
 
 > ### macOS Installer (v2.1.0)
-> **[📦 Download M14tTouch-2.1.0.dmg](.build/artifacts/M14tTouch-2.1.0.dmg?raw=true)**
+> **[📦 Download M14tTouch-Installer.pkg](.build/artifacts/M14tTouch-Installer.pkg?raw=true)**
 >
-> *Includes **M14tTouch.app** (Drag & Drop) and **M14tTouch-Installer.pkg**, the background USB HID driver.*
+> *Installs both **M14tTouch.app** (`/Applications`) and the **`m14ttouch`** background USB HID driver (`~/.local/bin/m14ttouch`).*
 
 </div>
 
@@ -110,14 +110,14 @@ To run **M14t Touch**, make sure your setup meets these requirements:
 ## Installation & First-Time Setup
 
 ### Step 1 — Download & Install
-1. Download **[M14tTouch-2.1.0.dmg](.build/artifacts/M14tTouch-2.1.0.dmg?raw=true)** and double-click to mount the disk image.
-2. Drag **M14tTouch.app** into your **Applications** folder *(or run **M14tTouch-Installer.pkg** for automated setup)*.
+1. Download **[M14tTouch-Installer.pkg](.build/artifacts/M14tTouch-Installer.pkg?raw=true)** and double-click to run the installer.
+2. Follow the prompts to install both **M14tTouch.app** (`/Applications/M14tTouch.app`) and the background USB HID driver (`~/.local/bin/m14ttouch`).
 3. Open **M14tTouch** from `/Applications`.
 
 > [!NOTE]
-> If macOS Gatekeeper prompts that the app is from an unidentified developer on first launch, **Right-Click (or Control-Click) `M14tTouch.app` → Open**, or run:
+> If macOS Gatekeeper prompts that the package or app is from an unidentified developer on first launch, **Right-Click (or Control-Click) `M14tTouch-Installer.pkg` → Open**, or run:
 > ```bash
-> xattr -cr /Applications/M14tTouch.app
+> xattr -cr /Applications/M14tTouch.app ~/.local/bin/m14ttouch
 > ```
 
 ### Step 2 — Authorize the Background Driver (One-Time Setup)
@@ -138,10 +138,9 @@ Prefer building from source or scripting display presets from the terminal? Only
 # Clone and install the background daemon + LaunchAgent:
 ./install.sh --autostart
 
-# Or build standalone artifacts (.app, .pkg, and .dmg):
+# Or build standalone artifacts (.app and .pkg):
 Scripts/build-app.sh  # -> .build/artifacts/M14tTouch.app
-Scripts/build-pkg.sh  # -> .build/artifacts/M14tTouch.pkg
-Scripts/build-dmg.sh  # -> .build/artifacts/M14tTouch-2.1.0.dmg
+Scripts/build-pkg.sh  # -> .build/artifacts/M14tTouch-Installer.pkg
 ```
 
 <details>

@@ -367,7 +367,9 @@ public struct GlassActionLabelStyle: LabelStyle {
                 .imageScale(.medium)
                 .frame(width: 14, height: 14)
             configuration.title
+                .lineLimit(1)
         }
+        .frame(height: 16)
     }
 }
 
@@ -392,31 +394,32 @@ public struct GlassActionButton<LabelContent: View>: View {
     }
 
     public var body: some View {
-        if #available(macOS 26, *) {
-            if isProminent {
-                Button(action: action, label: label)
-                    .buttonStyle(.glassProminent)
-                    .tint(tint)
-                    .labelStyle(GlassActionLabelStyle())
+        Group {
+            if #available(macOS 26, *) {
+                if isProminent {
+                    Button(action: action, label: label)
+                        .buttonStyle(.glassProminent)
+                        .tint(tint)
+                } else {
+                    Button(action: action, label: label)
+                        .buttonStyle(.glass)
+                        .tint(tint)
+                }
             } else {
-                Button(action: action, label: label)
-                    .buttonStyle(.glass)
-                    .tint(tint)
-                    .labelStyle(GlassActionLabelStyle())
-            }
-        } else {
-            if isProminent {
-                Button(action: action, label: label)
-                    .buttonStyle(.borderedProminent)
-                    .tint(tint ?? .accentColor)
-                    .labelStyle(GlassActionLabelStyle())
-            } else {
-                Button(action: action, label: label)
-                    .buttonStyle(.bordered)
-                    .tint(tint)
-                    .labelStyle(GlassActionLabelStyle())
+                if isProminent {
+                    Button(action: action, label: label)
+                        .buttonStyle(.borderedProminent)
+                        .tint(tint ?? .accentColor)
+                } else {
+                    Button(action: action, label: label)
+                        .buttonStyle(.bordered)
+                        .tint(tint)
+                }
             }
         }
+        .controlSize(.regular)
+        .frame(height: 28)
+        .labelStyle(GlassActionLabelStyle())
     }
 }
 
@@ -544,19 +547,17 @@ public struct SpinningRefreshIcon: View {
             .font(.system(size: size, weight: .semibold))
             .rotationEffect(.degrees(angle))
             .task(id: isRefreshing) {
-                guard isRefreshing else {
-                    withAnimation(.easeOut(duration: 0.2)) {
-                        angle = 0
-                    }
-                    return
-                }
-                while !Task.isCancelled && isRefreshing {
-                    angle += 10
-                    if angle >= 360 {
-                        angle -= 360
-                    }
+                guard isRefreshing else { return }
+                var spun: Double = 0
+                while !Task.isCancelled {
+                    angle = (angle + 12).truncatingRemainder(dividingBy: 360)
+                    spun += 12
                     try? await Task.sleep(nanoseconds: 16_000_000)
+                    if !isRefreshing && spun >= 360 && angle == 0 {
+                        break
+                    }
                 }
+                angle = 0
             }
     }
 }

@@ -291,37 +291,22 @@ private struct StatusFooterBar: View {
             Spacer()
 
             GlassActionButton(isProminent: false, action: onRefreshDisplays) {
-                Label {
-                    Text("Refresh Displays")
-                } icon: {
-                    SpinningRefreshIcon(
-                        systemName: "arrow.triangle.2.circlepath",
-                        size: 12,
-                        isRefreshing: isRefreshingDisplays
-                    )
-                }
+                Label("Refresh Displays", systemImage: "arrow.triangle.2.circlepath")
             }
-            .controlSize(.regular)
             .disabled(isRefreshingDisplays)
 
             GlassActionButton(isProminent: false, action: onRestartDriver) {
                 Label("Restart Driver", systemImage: "arrow.clockwise")
             }
-            .controlSize(.regular)
 
             GlassActionButton(isProminent: true, tint: saveSuccess ? AppColor.statusSuccess : .accentColor, action: onSave) {
                 Label(
-                    title: {
-                        Text(saveSuccess ? "Saved!" : (isSaving ? "Saving..." : "Save"))
-                            .fontWeight(.semibold)
-                    },
-                    icon: {
-                        Image(systemName: saveSuccess ? "checkmark" : "square.and.arrow.down")
-                    }
+                    saveSuccess ? "Saved!" : (isSaving ? "Saving..." : "Save"),
+                    systemImage: saveSuccess ? "checkmark" : "square.and.arrow.down"
                 )
+                .fontWeight(.semibold)
                 .frame(minWidth: 70)
             }
-            .controlSize(.regular)
             .keyboardShortcut("s", modifiers: .command)
         }
     }

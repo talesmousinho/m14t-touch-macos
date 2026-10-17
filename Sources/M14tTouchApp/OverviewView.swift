@@ -107,17 +107,8 @@ private struct HardwareBannerCard: View {
                 Spacer()
 
                 GlassActionButton(isProminent: false, action: onRefresh) {
-                    Label {
-                        Text("Refresh")
-                    } icon: {
-                        SpinningRefreshIcon(
-                            systemName: "arrow.clockwise",
-                            size: 12,
-                            isRefreshing: isRefreshing
-                        )
-                    }
+                    Label("Refresh", systemImage: "arrow.clockwise")
                 }
-                .controlSize(.regular)
                 .disabled(isRefreshing)
             }
         }
@@ -286,17 +277,12 @@ private struct PermissionItemRow: View {
 
             if isGranted {
                 GlassActionButton(isProminent: false, action: onSettings) {
-                    Text("Open Settings")
+                    Label("Open Settings", systemImage: "gearshape")
                 }
-                .controlSize(.regular)
             } else {
                 GlassActionButton(isProminent: true, tint: AppColor.statusWarning, action: onGrant) {
-                    Label(
-                        title: { Text("Grant Access") },
-                        icon: { Image(systemName: "arrow.up.forward.app") }
-                    )
+                    Label("Grant Access", systemImage: "arrow.up.forward.app")
                 }
-                .controlSize(.regular)
             }
         }
         .padding(12)
@@ -409,30 +395,23 @@ private struct DriverServiceControlCard: View {
                 HStack(spacing: 12) {
                     GlassActionButton(isProminent: true, tint: saveSuccess ? AppColor.statusSuccess : .accentColor, action: onSave) {
                         Label(
-                            title: {
-                                Text(saveSuccess ? "Saved!" : (isSaving ? "Saving..." : "Save Configuration"))
-                                    .fontWeight(.semibold)
-                            },
-                            icon: {
-                                Image(systemName: saveSuccess ? "checkmark.circle.fill" : "square.and.arrow.down.fill")
-                            }
+                            saveSuccess ? "Saved!" : (isSaving ? "Saving..." : "Save Configuration"),
+                            systemImage: saveSuccess ? "checkmark.circle.fill" : "square.and.arrow.down.fill"
                         )
+                        .fontWeight(.semibold)
                         .frame(minWidth: 160)
                     }
-                    .controlSize(.regular)
                     .keyboardShortcut("s", modifiers: .command)
 
                     GlassActionButton(isProminent: false, action: onRestart) {
                         Label("Save & Restart Driver", systemImage: "arrow.clockwise")
                     }
-                    .controlSize(.regular)
 
                     Spacer()
 
                     GlassActionButton(isProminent: false, action: onOpenLogs) {
                         Label("Logs", systemImage: "doc.text.magnifyingglass")
                     }
-                    .controlSize(.regular)
                     .help("Open driver logs folder in Finder")
                 }
             }
@@ -488,9 +467,8 @@ private struct TouchCalibrationCard: View {
                         }
 
                         GlassActionButton(isProminent: false, action: onReset) {
-                            Text("Reset Factory")
+                            Label("Reset Factory", systemImage: "arrow.counterclockwise")
                         }
-                        .controlSize(.regular)
                         .help("Restore default Lenovo 12372×6960 calibration bounds")
                     }
                 }
