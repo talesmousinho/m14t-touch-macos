@@ -1,5 +1,8 @@
 # Swift Package Manager
-.build/
+.build/*
+!.build/artifacts/
+.build/artifacts/*
+!.build/artifacts/*.dmg
 .swiftpm/
 Package.resolved
 
