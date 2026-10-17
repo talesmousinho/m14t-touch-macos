@@ -224,6 +224,7 @@ public struct SettingRow<TrailingContent: View>: View {
             Spacer()
 
             trailing()
+                .toggleStyle(.switch)
         }
         .padding(.vertical, 4)
     }

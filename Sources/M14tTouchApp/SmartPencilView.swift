@@ -64,6 +64,7 @@ private struct SmartPencilMasterCard: View {
                     subtitle: "Suppresses finger touch while pen tip is within 15mm of the screen glass"
                 ) {
                     Toggle("", isOn: $palmRejection)
+                        .toggleStyle(.switch)
                         .labelsHidden()
                         .disabled(!stylusEnabled)
                 }

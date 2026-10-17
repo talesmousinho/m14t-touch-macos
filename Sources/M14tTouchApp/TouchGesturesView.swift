@@ -95,6 +95,7 @@ private struct OneFingerTabletCard: View {
                             subtitle: "Single-tap clicks, double-tap selects word, triple-tap selects paragraph"
                         ) {
                             Toggle("", isOn: $tapToClick)
+                                .toggleStyle(.switch)
                                 .labelsHidden()
                         }
 
@@ -108,6 +109,7 @@ private struct OneFingerTabletCard: View {
                             subtitle: "Stationary 0.5s finger hold summons context menu at touch position"
                         ) {
                             Toggle("", isOn: $longPressRightClick)
+                                .toggleStyle(.switch)
                                 .labelsHidden()
                         }
 
@@ -210,6 +212,7 @@ private struct TwoFingerTrackpadCard: View {
                         subtitle: "Tap two fingers together anywhere to trigger context menu"
                     ) {
                         Toggle("", isOn: $twoFingerRightClick)
+                            .toggleStyle(.switch)
                             .labelsHidden()
                     }
 
@@ -223,6 +226,7 @@ private struct TwoFingerTrackpadCard: View {
                         subtitle: "Sub-pixel fluid trackpad panning across web pages and documents"
                     ) {
                         Toggle("", isOn: $twoFingerScroll)
+                            .toggleStyle(.switch)
                             .labelsHidden()
                     }
 
@@ -236,6 +240,7 @@ private struct TwoFingerTrackpadCard: View {
                         subtitle: "Content moves in the same direction as fingers (macOS default)"
                     ) {
                         Toggle("", isOn: $naturalScrolling)
+                            .toggleStyle(.switch)
                             .labelsHidden()
                     }
 
@@ -249,6 +254,7 @@ private struct TwoFingerTrackpadCard: View {
                         subtitle: "Smooth zooming in Safari, Figma, Preview, Photos, and Maps"
                     ) {
                         Toggle("", isOn: $pinchToZoom)
+                            .toggleStyle(.switch)
                             .labelsHidden()
                     }
                 }
@@ -284,6 +290,7 @@ private struct ThreeFingerSpacesCard: View {
                         subtitle: "Swipe Left/Right for Desktops, Up for Mission Control, Down for Exposé"
                     ) {
                         Toggle("", isOn: $threeFingerSwipes)
+                            .toggleStyle(.switch)
                             .labelsHidden()
                     }
 
@@ -297,6 +304,7 @@ private struct ThreeFingerSpacesCard: View {
                         subtitle: "Swipe follows natural trackpad gesture physics"
                     ) {
                         Toggle("", isOn: $naturalSpacesSwipe)
+                            .toggleStyle(.switch)
                             .labelsHidden()
                     }
                 }
@@ -330,6 +338,7 @@ private struct DiagnosticsCard: View {
                     subtitle: "Writes raw USB coordinate reports to ~/Library/Logs/M14tTouch/helper.err.log"
                 ) {
                     Toggle("", isOn: $debugMode)
+                        .toggleStyle(.switch)
                         .labelsHidden()
                 }
             }

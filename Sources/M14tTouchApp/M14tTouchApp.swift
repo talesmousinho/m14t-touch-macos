@@ -54,6 +54,7 @@ struct RootSplitView: View {
             .background(Color.clear)
         }
         .navigationSplitViewStyle(.balanced)
+        .toggleStyle(.switch)
         .toolbar {
             AppToolbarItems(
                 allPermissionsGranted: model.allPermissionsGranted,

@@ -393,6 +393,7 @@ private struct DriverServiceControlCard: View {
                     subtitle: "Installs a persistent LaunchAgent daemon in ~/Library/LaunchAgents"
                 ) {
                     Toggle("", isOn: $runAtLogin)
+                        .toggleStyle(.switch)
                         .labelsHidden()
                 }
 

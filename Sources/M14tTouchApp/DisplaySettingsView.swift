@@ -69,6 +69,7 @@ private struct DisplayTargetCard: View {
                         subtitle: "Binds to M14t EDID across reconnects and multi-monitor changes"
                     ) {
                         Toggle("", isOn: $autoDetect)
+                            .toggleStyle(.switch)
                             .labelsHidden()
                     }
 
@@ -136,6 +137,7 @@ private struct CursorReturnCard: View {
                     subtitle: "Snaps pointer back to main screen as soon as trackpad or mouse is used after touch"
                 ) {
                     Toggle("", isOn: $returnCursorToMainDisplay)
+                        .toggleStyle(.switch)
                         .labelsHidden()
                 }
             }
@@ -269,6 +271,7 @@ private struct AxesOrientationCard: View {
                         subtitle: "Mirrors horizontal touch coordinates from right to left"
                     ) {
                         Toggle("", isOn: $invertX)
+                            .toggleStyle(.switch)
                             .labelsHidden()
                     }
 
@@ -282,6 +285,7 @@ private struct AxesOrientationCard: View {
                         subtitle: "Mirrors vertical touch coordinates from bottom to top"
                     ) {
                         Toggle("", isOn: $invertY)
+                            .toggleStyle(.switch)
                             .labelsHidden()
                     }
                 }
