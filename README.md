@@ -24,26 +24,9 @@ Out of the box, macOS recognizes the **Lenovo ThinkVision M14t** video signal ov
 
 ---
 
-## System Requirements
+## Features
 
-To run **M14t Touch**, make sure your setup meets these requirements:
-
-| Requirement | Specification |
-| :--- | :--- |
-| **Mac Operating System** | **macOS 13.0 Ventura** or later (macOS 14 Sonoma & macOS 15 Sequoia fully supported) |
-| **Processor** | **Apple Silicon** (`M1` / `M2` / `M3` / `M4`) or **Intel** Mac with Thunderbolt / USB-C |
-| **Display Hardware** | **Lenovo ThinkVision M14t** (Gen 1 or Gen 2 with Wacom `0x2D1F:0x524C` digitizer) |
-| **Connection Cable** | **Full-featured USB-C cable** supporting **DisplayPort Alt-Mode + USB 2.0/3.0 Data**<br>*(⚠️ Charge-only USB-C cables carry power only and will not transmit video or touch data)* |
-| **macOS Permissions** | **Accessibility** permission granted once to the background driver (`~/.local/bin/m14ttouch`) |
-
-> [!TIP]
-> **Hardware OSD Tip for Zero Ghosting:** Press the physical menu button on the side of your ThinkVision M14t and set **Overdrive** to **Normal**. Avoid *Extreme* (causes inverse white ghost coronas) or *Off* (increases pixel trail smearing).
-
----
-
-## Product Tour & Features
-
-### 1. Effortless Service Control & One-Click Permissions
+### 1. Service Control & One-Click Permissions
 
 <div align="center">
   <img src="Assets/screenshots/service-permissions.png" width="860" alt="M14t Touch — Service & Permissions" />
@@ -104,6 +87,23 @@ To run **M14t Touch**, make sure your setup meets these requirements:
   * **Swipe Left / Right:** Switch seamlessly between macOS **Desktops & Full-Screen Spaces**.
   * **Swipe Up:** Trigger **Mission Control**.
   * **Swipe Down:** Trigger **App Exposé**.
+
+---
+
+## System Requirements
+
+To run **M14t Touch**, make sure your setup meets these requirements:
+
+| Requirement | Specification |
+| :--- | :--- |
+| **Mac Operating System** | **macOS 13.0 Ventura** or later (macOS 14 Sonoma & macOS 15 Sequoia fully supported) |
+| **Processor** | **Apple Silicon** (`M1` / `M2` / `M3` / `M4`) or **Intel** Mac with Thunderbolt / USB-C |
+| **Display Hardware** | **Lenovo ThinkVision M14t** (Gen 1 or Gen 2 with Wacom `0x2D1F:0x524C` digitizer) |
+| **Connection Cable** | **Full-featured USB-C cable** supporting **DisplayPort Alt-Mode + USB 2.0/3.0 Data**<br>*(⚠️ Charge-only USB-C cables carry power only and will not transmit video or touch data)* |
+| **macOS Permissions** | **Accessibility** permission granted once to the background driver (`~/.local/bin/m14ttouch`) |
+
+> [!TIP]
+> **Hardware OSD Tip for Zero Ghosting:** Press the physical menu button on the side of your ThinkVision M14t and set **Overdrive** to **Normal**. Avoid *Extreme* (causes inverse white ghost coronas) or *Off* (increases pixel trail smearing).
 
 ---
 
