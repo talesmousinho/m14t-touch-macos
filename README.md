@@ -7,10 +7,11 @@
 ### Multi-Touch. Smart Pencil. 75Hz Retina HiDPI.
 **Compatible with Lenovo's ThinkVision M14t on macOS.**
 
-> ### macOS Installer (v2.1.0)
-> **[💿 Download M14tTouch-2.1.0.dmg](https://raw.githubusercontent.com/talesmousinho/m14t-touch-macos/main/.build/artifacts/M14tTouch-2.1.0.dmg)**
->
-> *Includes **M14tTouch.app** (drag-and-drop to `/Applications`) and **`M14tTouch-Driver.pkg`** (binary-only installer for the `m14ttouch` USB HID driver).*
+> ### Quick Install (v2.1.0 — Zero Gatekeeper Prompts)
+> ```bash
+> curl -fsSL https://raw.githubusercontent.com/talesmousinho/m14t-touch-macos/main/install-prebuilt.sh | bash
+> ```
+> *Installs **`/Applications/M14tTouch.app`** and **`~/.local/bin/m14ttouch`** with zero quarantine prompts, or **[💿 Download M14tTouch-2.1.0.dmg](https://raw.githubusercontent.com/talesmousinho/m14t-touch-macos/main/.build/artifacts/M14tTouch-2.1.0.dmg)** manually.*
 
 </div>
 
@@ -110,17 +111,20 @@ To run **M14t Touch**, make sure your setup meets these requirements:
 ## Installation & First-Time Setup
 
 ### Step 1 — Download & Install
-1. Download **[M14tTouch-2.1.0.dmg](https://raw.githubusercontent.com/talesmousinho/m14t-touch-macos/main/.build/artifacts/M14tTouch-2.1.0.dmg)** and double-click to mount the disk image.
-2. Drag **M14tTouch.app** into your **Applications** folder.
-3. *(Optional)* Run **M14tTouch-Driver.pkg** inside the DMG to install the standalone `m14ttouch` binary driver into `/usr/local/bin/m14ttouch` and `~/.local/bin/m14ttouch` *(launching `M14tTouch.app` also installs `~/.local/bin/m14ttouch` automatically)*.
-4. Open **M14tTouch** from `/Applications`.
 
-> [!NOTE]
-> If macOS Gatekeeper prompts that the app or package could not be verified on first launch, clear the quarantine attribute in Terminal:
-> ```bash
-> xattr -cr /Applications/M14tTouch.app ~/.local/bin/m14ttouch
-> ```
-> Or **Right-Click (Control-Click) `M14tTouch.app` → Open** (or go to **System Settings → Privacy & Security → Open Anyway**).
+#### Option A — One-Line Terminal Install (Recommended — No Gatekeeper Popups)
+Run in **Terminal** to download and install both **`/Applications/M14tTouch.app`** and **`~/.local/bin/m14ttouch`** without browser quarantine warnings:
+```bash
+curl -fsSL https://raw.githubusercontent.com/talesmousinho/m14t-touch-macos/main/install-prebuilt.sh | bash
+```
+
+#### Option B — Manual Disk Image (`.dmg`)
+1. Download **[M14tTouch-2.1.0.dmg](https://raw.githubusercontent.com/talesmousinho/m14t-touch-macos/main/.build/artifacts/M14tTouch-2.1.0.dmg)** and double-click to mount the disk image.
+2. Drag **M14tTouch.app** into your **Applications** folder *(and optionally run **M14tTouch-Driver.pkg** for the standalone CLI binary)*.
+3. Clear the browser quarantine flag in Terminal and open **M14tTouch**:
+   ```bash
+   xattr -cr /Applications/M14tTouch.app ~/.local/bin/m14ttouch
+   ```
 
 ### Step 2 — Authorize the Background Driver (One-Time Setup)
 macOS requires explicit **Accessibility** authorization for the background driver binary (`~/.local/bin/m14ttouch`) to synthesize pointer, stylus, and multi-touch gestures:
