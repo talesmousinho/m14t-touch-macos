@@ -7,17 +7,8 @@
 ### Multi-Touch. Smart Pencil. 75Hz Retina HiDPI.
 **Compatible with Lenovo's ThinkVision M14t on macOS.**
 
-[![Platform](https://img.shields.io/badge/macOS-13.0%2B%20(Ventura%20%E2%80%A2%20Sonoma%20%E2%80%A2%20Sequoia)-000000?style=for-the-badge&logo=apple&logoColor=white)](https://www.apple.com/macos/)
-[![Architecture](https://img.shields.io/badge/Silicon-Apple%20Silicon%20%26%20Intel-0071E3?style=for-the-badge&logo=apple&logoColor=white)](#system-requirements)
-[![License](https://img.shields.io/badge/License-MIT-34C759?style=for-the-badge)](LICENSE)
-
-<br />
-
->.
-> ### ⬇️ Ready-to-Use macOS Installer (v2.1.0)
+> ### macOS Installer (v2.1.0)
 > **[📦 Download M14tTouch-2.1.0.dmg](.build/artifacts/M14tTouch-2.1.0.dmg?raw=true)**
->
-> [![Download DMG](https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20Download%20Installer-M14tTouch--2.1.0.dmg-0071E3?style=for-the-badge&logo=apple&logoColor=white)](.build/artifacts/M14tTouch-2.1.0.dmg?raw=true)
 >
 > *Includes **M14tTouch.app** (Drag & Drop) and **M14tTouch-Installer.pkg**, the background USB HID driver.*
 
