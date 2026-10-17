@@ -8,9 +8,9 @@
 **Compatible with Lenovo's ThinkVision M14t on macOS.**
 
 > ### macOS Installer (v2.1.0)
-> **[📦 Download M14tTouch-Installer.pkg](https://raw.githubusercontent.com/talesmousinho/m14t-touch-macos/main/.build/artifacts/M14tTouch-Installer.pkg)**
+> **[💿 Download M14tTouch-2.1.0.dmg](https://raw.githubusercontent.com/talesmousinho/m14t-touch-macos/main/.build/artifacts/M14tTouch-2.1.0.dmg)**
 >
-> *Installs both **M14tTouch.app** (`/Applications`) and the **`m14ttouch`** background USB HID driver (`~/.local/bin/m14ttouch`).*
+> *Includes **M14tTouch.app** (drag-and-drop to `/Applications`) and **`M14tTouch-Driver.pkg`** (binary-only installer for the `m14ttouch` USB HID driver).*
 
 </div>
 
@@ -110,15 +110,17 @@ To run **M14t Touch**, make sure your setup meets these requirements:
 ## Installation & First-Time Setup
 
 ### Step 1 — Download & Install
-1. Download **[M14tTouch-Installer.pkg](https://raw.githubusercontent.com/talesmousinho/m14t-touch-macos/main/.build/artifacts/M14tTouch-Installer.pkg)** and double-click to run the installer.
-2. Follow the prompts to install both **M14tTouch.app** (`/Applications/M14tTouch.app`) and the background USB HID driver (`~/.local/bin/m14ttouch`).
-3. Open **M14tTouch** from `/Applications`.
+1. Download **[M14tTouch-2.1.0.dmg](https://raw.githubusercontent.com/talesmousinho/m14t-touch-macos/main/.build/artifacts/M14tTouch-2.1.0.dmg)** and double-click to mount the disk image.
+2. Drag **M14tTouch.app** into your **Applications** folder.
+3. *(Optional)* Run **M14tTouch-Driver.pkg** inside the DMG to install the standalone `m14ttouch` binary driver into `/usr/local/bin/m14ttouch` and `~/.local/bin/m14ttouch` *(launching `M14tTouch.app` also installs `~/.local/bin/m14ttouch` automatically)*.
+4. Open **M14tTouch** from `/Applications`.
 
 > [!NOTE]
-> If macOS Gatekeeper prompts that the package or app is from an unidentified developer on first launch, **Right-Click (or Control-Click) `M14tTouch-Installer.pkg` → Open**, or run:
+> If macOS Gatekeeper prompts that the app or package could not be verified on first launch, clear the quarantine attribute in Terminal:
 > ```bash
 > xattr -cr /Applications/M14tTouch.app ~/.local/bin/m14ttouch
 > ```
+> Or **Right-Click (Control-Click) `M14tTouch.app` → Open** (or go to **System Settings → Privacy & Security → Open Anyway**).
 
 ### Step 2 — Authorize the Background Driver (One-Time Setup)
 macOS requires explicit **Accessibility** authorization for the background driver binary (`~/.local/bin/m14ttouch`) to synthesize pointer, stylus, and multi-touch gestures:
@@ -138,9 +140,10 @@ Prefer building from source or scripting display presets from the terminal? Only
 # Clone and install the background daemon + LaunchAgent:
 ./install.sh --autostart
 
-# Or build standalone artifacts (.app and .pkg):
+# Or build standalone artifacts (.app, binary-driver .pkg, and .dmg):
 Scripts/build-app.sh  # -> .build/artifacts/M14tTouch.app
-Scripts/build-pkg.sh  # -> .build/artifacts/M14tTouch-Installer.pkg
+Scripts/build-pkg.sh  # -> .build/artifacts/M14tTouch-Driver.pkg (binary driver only)
+Scripts/build-dmg.sh  # -> .build/artifacts/M14tTouch-2.1.0.dmg (bundles .app + M14tTouch-Driver.pkg)
 ```
 
 <details>

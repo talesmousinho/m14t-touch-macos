@@ -2,7 +2,7 @@
 .build/*
 !.build/artifacts/
 .build/artifacts/*
-!.build/artifacts/M14tTouch-Installer.pkg
+!.build/artifacts/M14tTouch-2.1.0.dmg
 .swiftpm/
 Package.resolved
 

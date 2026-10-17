@@ -57,6 +57,7 @@ public final class SettingsModel: ObservableObject {
         self.displays = DisplayResolver.all()
         self.accessibilityGranted = DaemonStateStore.load()?.isAccessibilityTrusted ?? false
 
+        ensureLocalHelperInstalled()
         refreshAll(animated: false)
         setupObservers()
     }
@@ -99,6 +100,32 @@ public final class SettingsModel: ObservableObject {
 
     public var isM14tConnected: Bool {
         m14tDisplay != nil
+    }
+
+    private func ensureLocalHelperInstalled() {
+        guard let bundled = Bundle.main.resourceURL?.appendingPathComponent("m14ttouch"),
+              FileManager.default.isExecutableFile(atPath: bundled.path) else {
+            return
+        }
+
+        let localDir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".local/bin", isDirectory: true)
+        let localBin = localDir.appendingPathComponent("m14ttouch")
+
+        guard !FileManager.default.isExecutableFile(atPath: localBin.path) else {
+            return
+        }
+
+        do {
+            try FileManager.default.createDirectory(at: localDir, withIntermediateDirectories: true)
+            if FileManager.default.fileExists(atPath: localBin.path) {
+                try FileManager.default.removeItem(at: localBin)
+            }
+            try FileManager.default.copyItem(at: bundled, to: localBin)
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: localBin.path)
+        } catch {
+            // Fall back to bundled helper if ~/.local/bin cannot be written
+        }
     }
 
     public var helperURL: URL {

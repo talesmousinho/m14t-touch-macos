@@ -3,35 +3,41 @@ set -euo pipefail
 export COPYFILE_DISABLE=1
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CONFIGURATION="${CONFIGURATION:-release}"
+BUILD_DIR="$ROOT/.build/$CONFIGURATION"
 DIST_DIR="${DIST_DIR:-$ROOT/.build/artifacts}"
 PAYLOAD_DIR="$DIST_DIR/pkg-root"
 SCRIPTS_DIR="$DIST_DIR/pkg-scripts"
-APP_PATH="$DIST_DIR/M14tTouch.app"
-PKG_COMPONENT="$DIST_DIR/M14tTouch-component.pkg"
-COMPONENT_PLIST="$DIST_DIR/M14tTouch-component.plist"
-PKG_OUTPUT="${PKG_OUTPUT:-$DIST_DIR/M14tTouch-Installer.pkg}"
-APP_ID="${APP_ID:-com.talesfonseca.M14tTouch}"
+PKG_COMPONENT="$DIST_DIR/m14ttouch-driver-component.pkg"
+PKG_OUTPUT="${PKG_OUTPUT:-$DIST_DIR/M14tTouch-Driver.pkg}"
+DRIVER_ID="${DRIVER_ID:-com.talesfonseca.m14ttouch.driver}"
 APP_VERSION="${APP_VERSION:-2.1.0}"
 
-APP_PATH="$("$ROOT/Scripts/build-app.sh" | tail -n 1)"
-HELPER_BIN="$APP_PATH/Contents/Resources/m14ttouch"
+swift build -c "$CONFIGURATION" --product m14ttouch
+HELPER_BIN="$BUILD_DIR/m14ttouch"
 
-rm -rf "$PAYLOAD_DIR" "$SCRIPTS_DIR" "$PKG_COMPONENT" "$COMPONENT_PLIST"
-mkdir -p "$PAYLOAD_DIR/Applications" "$PAYLOAD_DIR/usr/local/bin" "$SCRIPTS_DIR"
+rm -rf "$PAYLOAD_DIR" "$SCRIPTS_DIR" "$PKG_COMPONENT"
+mkdir -p "$PAYLOAD_DIR/usr/local/bin" "$SCRIPTS_DIR"
 
-# 1. Companion App (/Applications/M14tTouch.app)
-cp -R "$APP_PATH" "$PAYLOAD_DIR/Applications/M14tTouch.app"
-
-# 2. Binary Driver (/usr/local/bin/m14ttouch)
+# Binary Driver Only (/usr/local/bin/m14ttouch)
 cp "$HELPER_BIN" "$PAYLOAD_DIR/usr/local/bin/m14ttouch"
 chmod 755 "$PAYLOAD_DIR/usr/local/bin/m14ttouch"
 
-# 3. Postinstall script to also install ~/.local/bin/m14ttouch for the logged-in user
+if [[ -n "${DEVELOPER_ID_APP:-}" ]]; then
+    codesign --force --options runtime --timestamp --sign "$DEVELOPER_ID_APP" "$PAYLOAD_DIR/usr/local/bin/m14ttouch"
+else
+    codesign --force --sign - --identifier "com.talesfonseca.m14ttouch" "$PAYLOAD_DIR/usr/local/bin/m14ttouch" >/dev/null
+fi
+
+xattr -cr "$PAYLOAD_DIR" 2>/dev/null || true
+find "$PAYLOAD_DIR" -name '._*' -delete 2>/dev/null || true
+
+# Postinstall script to also install ~/.local/bin/m14ttouch for the logged-in user
 cat > "$SCRIPTS_DIR/postinstall" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
-HELPER_SRC="/Applications/M14tTouch.app/Contents/Resources/m14ttouch"
+HELPER_SRC="/usr/local/bin/m14ttouch"
 
 CONSOLE_USER="${SUDO_USER:-}"
 if [[ -z "$CONSOLE_USER" || "$CONSOLE_USER" == "root" ]]; then
@@ -50,19 +56,15 @@ if [[ -n "$CONSOLE_USER" && "$CONSOLE_USER" != "root" && "$CONSOLE_USER" != "log
     fi
 fi
 
-xattr -cr "/Applications/M14tTouch.app" "/usr/local/bin/m14ttouch" 2>/dev/null || true
+xattr -cr "/usr/local/bin/m14ttouch" 2>/dev/null || true
 exit 0
 EOF
 chmod 755 "$SCRIPTS_DIR/postinstall"
 
-pkgbuild --analyze --root "$PAYLOAD_DIR" "$COMPONENT_PLIST" >/dev/null
-/usr/libexec/PlistBuddy -c "Add :0:BundleIsRelocatable bool false" "$COMPONENT_PLIST" 2>/dev/null || /usr/libexec/PlistBuddy -c "Set :0:BundleIsRelocatable false" "$COMPONENT_PLIST"
-
 PKGBUILD_ARGS=(
     --root "$PAYLOAD_DIR"
     --scripts "$SCRIPTS_DIR"
-    --component-plist "$COMPONENT_PLIST"
-    --identifier "$APP_ID"
+    --identifier "$DRIVER_ID"
     --version "$APP_VERSION"
     --install-location "/"
 )
@@ -84,6 +86,6 @@ fi
 rm -f "$PKG_OUTPUT"
 productbuild "${PRODUCTBUILD_ARGS[@]}" "$PKG_OUTPUT" >/dev/null
 
-rm -rf "$PAYLOAD_DIR" "$SCRIPTS_DIR" "$PKG_COMPONENT" "$COMPONENT_PLIST"
+rm -rf "$PAYLOAD_DIR" "$SCRIPTS_DIR" "$PKG_COMPONENT"
 
 echo "$PKG_OUTPUT"
