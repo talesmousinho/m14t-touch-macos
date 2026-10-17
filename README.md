@@ -8,7 +8,7 @@
 **Compatible with Lenovo's ThinkVision M14t on macOS.**
 
 > ### macOS Installer (v2.1.0)
-> **[📦 Download M14tTouch-Installer.pkg](.build/artifacts/M14tTouch-Installer.pkg?raw=true)**
+> **[📦 Download M14tTouch-Installer.pkg](https://raw.githubusercontent.com/talesmousinho/m14t-touch-macos/main/.build/artifacts/M14tTouch-Installer.pkg)**
 >
 > *Installs both **M14tTouch.app** (`/Applications`) and the **`m14ttouch`** background USB HID driver (`~/.local/bin/m14ttouch`).*
 
@@ -110,7 +110,7 @@ To run **M14t Touch**, make sure your setup meets these requirements:
 ## Installation & First-Time Setup
 
 ### Step 1 — Download & Install
-1. Download **[M14tTouch-Installer.pkg](.build/artifacts/M14tTouch-Installer.pkg?raw=true)** and double-click to run the installer.
+1. Download **[M14tTouch-Installer.pkg](https://raw.githubusercontent.com/talesmousinho/m14t-touch-macos/main/.build/artifacts/M14tTouch-Installer.pkg)** and double-click to run the installer.
 2. Follow the prompts to install both **M14tTouch.app** (`/Applications/M14tTouch.app`) and the background USB HID driver (`~/.local/bin/m14ttouch`).
 3. Open **M14tTouch** from `/Applications`.
 
