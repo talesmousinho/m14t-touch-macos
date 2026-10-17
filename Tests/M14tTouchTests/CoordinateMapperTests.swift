@@ -705,3 +705,36 @@ final class CursorAutoReturnTests: XCTestCase {
         XCTAssertTrue(converted.returnCursorToMainDisplay)
     }
 }
+
+final class PermissionIsolationTests: XCTestCase {
+
+    /// Guards against regression where M14tTouchApp directly calls AXIsProcessTrusted(),
+    /// which causes macOS TCC to register and prompt M14tTouch.app instead of the m14ttouch binary.
+    func testSettingsAppNeverCallsAXIsProcessTrustedDirectly() throws {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let settingsModelURL = repoRoot.appendingPathComponent("Sources/M14tTouchApp/SettingsModel.swift")
+        let source = try String(contentsOf: settingsModelURL, encoding: .utf8)
+
+        let codeLines = source
+            .components(separatedBy: .newlines)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+
+        XCTAssertFalse(
+            codeLines.contains("import ApplicationServices"),
+            "M14tTouchApp must never import ApplicationServices or check TCC on the GUI app process."
+        )
+        XCTAssertFalse(
+            codeLines.contains("AXIsProcessTrusted"),
+            "M14tTouchApp must never call AXIsProcessTrusted* directly; use LaunchAgentManager.probeBinaryAccessibility."
+        )
+        XCTAssertTrue(
+            codeLines.contains("LaunchAgentManager.probeBinaryAccessibility"),
+            "SettingsModel.refreshPermissions must validate the m14ttouch binary via LaunchAgentManager.probeBinaryAccessibility."
+        )
+    }
+}
+

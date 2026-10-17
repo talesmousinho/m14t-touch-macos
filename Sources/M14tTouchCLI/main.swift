@@ -114,7 +114,16 @@ case .resetCalibration:
 
 case .checkPermissions:
     let ax = AXIsProcessTrusted()
+    let binaryPath = CommandLine.arguments.first ?? "m14ttouch"
+    let state = DaemonState(
+        pid: Int(ProcessInfo.processInfo.processIdentifier),
+        isAccessibilityTrusted: ax,
+        isInputMonitoringTrusted: true,
+        binaryPath: binaryPath
+    )
+    DaemonStateStore.save(state)
     print("{\"accessibility\": \(ax)}")
+    fflush(stdout)
     exit(0)
 
 case .requestPermissions:

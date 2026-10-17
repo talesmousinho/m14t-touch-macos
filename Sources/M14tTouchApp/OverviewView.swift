@@ -12,12 +12,14 @@ public struct OverviewView: View {
                 HardwareBannerCard(
                     display: model.m14tDisplay,
                     isM14tConnected: model.isM14tConnected,
+                    isRefreshing: model.isRefreshingDisplays,
                     onRefresh: model.refreshDisplays
                 )
 
                 PermissionsHubCard(
                     allGranted: model.allPermissionsGranted,
                     accessibilityGranted: model.accessibilityGranted,
+                    isRefreshing: model.isRefreshingPermissions,
                     onRefresh: model.refreshPermissions,
                     onRevealBinary: model.revealHelperInFinder,
                     onRequestAccessibility: model.requestAccessibilityPermission,
@@ -55,6 +57,9 @@ public struct OverviewView: View {
             .padding(.bottom, 24)
         }
         .scrollContentBackground(.hidden)
+        .onAppear {
+            model.refreshPermissions(animated: false)
+        }
     }
 }
 
@@ -63,9 +68,8 @@ public struct OverviewView: View {
 private struct HardwareBannerCard: View {
     let display: DisplayInfo?
     let isM14tConnected: Bool
+    let isRefreshing: Bool
     let onRefresh: () -> Void
-
-    @State private var isSpinning = false
 
     var body: some View {
         GlassCard(padding: 16) {
@@ -102,22 +106,20 @@ private struct HardwareBannerCard: View {
 
                 Spacer()
 
-                GlassActionButton(isProminent: false, action: handleRefresh) {
-                    Label("Refresh", systemImage: "arrow.clockwise")
-                        .rotationEffect(.degrees(isSpinning ? 360 : 0))
+                GlassActionButton(isProminent: false, action: onRefresh) {
+                    Label {
+                        Text("Refresh")
+                    } icon: {
+                        SpinningRefreshIcon(
+                            systemName: "arrow.clockwise",
+                            size: 12,
+                            isRefreshing: isRefreshing
+                        )
+                    }
                 }
                 .controlSize(.regular)
+                .disabled(isRefreshing)
             }
-        }
-    }
-
-    private func handleRefresh() {
-        withAnimation(.easeInOut(duration: 0.4)) {
-            isSpinning = true
-            onRefresh()
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-            isSpinning = false
         }
     }
 }
@@ -127,6 +129,7 @@ private struct HardwareBannerCard: View {
 private struct PermissionsHubCard: View {
     let allGranted: Bool
     let accessibilityGranted: Bool
+    let isRefreshing: Bool
     let onRefresh: () -> Void
     let onRevealBinary: () -> Void
     let onRequestAccessibility: () -> Void
@@ -150,11 +153,17 @@ private struct PermissionsHubCard: View {
                     }
 
                     Button(action: onRefresh) {
-                        Image(systemName: "arrow.triangle.2.circlepath")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Color.accentColor)
+                        SpinningRefreshIcon(
+                            systemName: "arrow.triangle.2.circlepath",
+                            size: 13,
+                            isRefreshing: isRefreshing
+                        )
+                        .foregroundStyle(Color.accentColor)
+                        .frame(width: 24, height: 24)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.borderless)
+                    .disabled(isRefreshing)
                     .help("Re-check binary permissions")
                 }
 
@@ -170,7 +179,7 @@ private struct PermissionsHubCard: View {
                                     .font(.system(.subheadline, design: .rounded, weight: .semibold))
                                     .foregroundStyle(.primary)
 
-                                Text("macOS requires background daemons to be manually added. The settings app (**M14tTouch.app**) needs no permissions — only the binary (**m14ttouch**) requires Accessibility.")
+                                Text("macOS requires the driver binary (**m14ttouch**) to be granted Accessibility permission to synthesize touches and gestures.")
                                     .font(.system(.caption, design: .default))
                                     .foregroundStyle(Color.primary.opacity(0.85))
                                     .fixedSize(horizontal: false, vertical: true)
@@ -227,7 +236,7 @@ private struct PermissionsHubCard: View {
 
                 PermissionItemRow(
                     title: "Accessibility (Synthetic Pointer & Gestures)",
-                    subtitle: "Allows ~/.local/bin/m14ttouch to simulate cursor clicks, text selection, drag & drop, and multi-finger gestures. (Settings app does not require permissions).",
+                    subtitle: "Allows ~/.local/bin/m14ttouch to simulate cursor clicks, text selection, drag & drop, and multi-finger gestures.",
                     icon: "hand.point.up.left.and.text",
                     iconColor: .purple,
                     isGranted: accessibilityGranted,

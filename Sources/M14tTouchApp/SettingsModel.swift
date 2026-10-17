@@ -1,5 +1,4 @@
 import AppKit
-import ApplicationServices
 import CoreGraphics
 import Foundation
 import M14tTouchCore
@@ -31,6 +30,8 @@ public final class SettingsModel: ObservableObject {
     @Published public var isCalibrating = false
 
     @Published public var accessibilityGranted = false
+    @Published public var isRefreshingPermissions = false
+    @Published public var isRefreshingDisplays = false
 
     @Published public var isHelperInstalled = false
     @Published public var isHelperRunning = false
@@ -43,6 +44,7 @@ public final class SettingsModel: ObservableObject {
     private var calibrationProcess: Process?
     private var periodicTimer: Timer?
     private var notificationObserver: NSObjectProtocol?
+    private var isPermissionProbeInFlight = false
 
     private let timeFormatter: DateFormatter = {
         let df = DateFormatter()
@@ -53,8 +55,9 @@ public final class SettingsModel: ObservableObject {
     public init() {
         self.preferences = PreferencesStore.load() ?? AppPreferences()
         self.displays = DisplayResolver.all()
+        self.accessibilityGranted = DaemonStateStore.load()?.isAccessibilityTrusted ?? false
 
-        refreshAll()
+        refreshAll(animated: false)
         setupObservers()
     }
 
@@ -72,14 +75,14 @@ public final class SettingsModel: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.refreshAll()
+                self?.refreshAll(animated: true)
             }
         }
 
         periodicTimer = Timer.scheduledTimer(withTimeInterval: 4.0, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.refreshHelperStatus()
-                self?.refreshPermissions()
+                self?.refreshPermissions(animated: false)
             }
         }
     }
@@ -116,25 +119,76 @@ public final class SettingsModel: ObservableObject {
             ?? URL(fileURLWithPath: "/usr/local/bin/m14ttouch")
     }
 
-    public func refreshAll() {
+    public func refreshAll(animated: Bool = true) {
         refreshHelperStatus()
-        refreshPermissions()
+        refreshPermissions(animated: animated)
         refreshDisplays()
     }
 
+    // CRITICAL ARCHITECTURAL INVARIANT — DO NOT MODIFY OR ROLLBACK:
+    // 1. NEVER import `ApplicationServices` or call `AXIsProcessTrusted()` / `AXIsProcessTrustedWithOptions()`
+    //    inside `M14tTouchApp`. Doing so causes macOS TCC to register `M14tTouch.app` itself in
+    //    System Settings → Accessibility and pop up false permission prompts for the GUI app.
+    // 2. NEVER spawn `m14ttouch --check-permissions` as a direct child `Process()` of `M14tTouch.app`.
+    //    macOS TCC sets the parent GUI app (`M14tTouch.app`) as the "responsible process" for direct
+    //    child processes, returning `M14tTouch.app`'s TCC status instead of `m14ttouch`'s status.
+    // 3. NEVER rely solely on reading cached `DaemonStateStore.load()` without a live probe, because
+    //    macOS `HIServices` caches `AXIsProcessTrusted()` inside long-running processes.
+    // 4. ALWAYS validate permissions via `LaunchAgentManager.probeBinaryAccessibility(helperURL:)`,
+    //    which runs a one-shot `launchd` job (parent PID 1) so `tccd` evaluates the exact on-disk
+    //    `m14ttouch` binary with zero process-level cache staleness.
     public func refreshPermissions() {
-        // Inspect the ground-truth state emitted strictly by the running background daemon
-        if let liveState = DaemonStateStore.load(),
-           (isHelperRunning && (helperPID == nil || liveState.pid == helperPID || abs(Date().timeIntervalSince1970 - liveState.timestamp) < 30)) {
-            accessibilityGranted = liveState.isAccessibilityTrusted
+        refreshPermissions(animated: true)
+    }
+
+    public func refreshPermissions(animated: Bool) {
+        if isPermissionProbeInFlight {
+            if animated {
+                isRefreshingPermissions = true
+            }
             return
         }
 
-        // Fallback to cached state from previous daemon runs (never run subprocesses from M14tTouch.app)
-        if let cached = DaemonStateStore.load() {
-            accessibilityGranted = cached.isAccessibilityTrusted
-        } else {
-            accessibilityGranted = false
+        isPermissionProbeInFlight = true
+        if animated {
+            isRefreshingPermissions = true
+        }
+
+        let targetHelperURL = helperURL
+        let wasGranted = accessibilityGranted
+        let startTime = Date()
+
+        Task.detached(priority: .userInitiated) {
+            let granted = LaunchAgentManager.probeBinaryAccessibility(helperURL: targetHelperURL)
+            var status = LaunchAgentManager.helperStatus()
+
+            if status.isRunning && granted != wasGranted {
+                try? LaunchAgentManager.restart()
+                status = LaunchAgentManager.helperStatus()
+            }
+
+            let shouldAnimate = await MainActor.run { [weak self] in
+                self?.isRefreshingPermissions ?? animated
+            }
+
+            if shouldAnimate {
+                let elapsed = Date().timeIntervalSince(startTime)
+                let minSpinDuration: TimeInterval = 0.5
+                if elapsed < minSpinDuration {
+                    try? await Task.sleep(nanoseconds: UInt64((minSpinDuration - elapsed) * 1_000_000_000))
+                }
+            }
+
+            let finalStatus = status
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                self.isHelperInstalled = finalStatus.isInstalled
+                self.isHelperRunning = finalStatus.isRunning
+                self.helperPID = finalStatus.pid
+                self.accessibilityGranted = granted
+                self.isRefreshingPermissions = false
+                self.isPermissionProbeInFlight = false
+            }
         }
     }
 
@@ -146,11 +200,15 @@ public final class SettingsModel: ObservableObject {
     }
 
     public func refreshDisplays() {
+        isRefreshingDisplays = true
         displays = DisplayResolver.all()
         if let m14t = displays.first(where: { $0.isM14t }) {
             preferences.displayIndex = m14t.index
         } else if !displays.contains(where: { $0.index == preferences.displayIndex }) {
             preferences.displayIndex = displays.first?.index ?? 1
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { [weak self] in
+            self?.isRefreshingDisplays = false
         }
     }
 
@@ -281,6 +339,8 @@ public final class SettingsModel: ObservableObject {
 
     // MARK: - Permission Handlers
 
+    // CRITICAL: Do NOT call `AXIsProcessTrustedWithOptions` here. Calling it from `M14tTouch.app`
+    // prompts macOS to authorize `M14tTouch.app` instead of the background binary `m14ttouch`.
     public func requestAccessibilityPermission() {
         revealHelperInFinder()
         openAccessibilitySettings()

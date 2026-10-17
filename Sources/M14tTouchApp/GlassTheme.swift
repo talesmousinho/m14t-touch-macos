@@ -523,3 +523,41 @@ public struct GlassSectionHeader: View {
         }
     }
 }
+
+// MARK: - Spinning Refresh Icon
+
+public struct SpinningRefreshIcon: View {
+    public let systemName: String
+    public let size: CGFloat
+    public let isRefreshing: Bool
+
+    @State private var angle: Double = 0
+
+    public init(systemName: String = "arrow.triangle.2.circlepath", size: CGFloat = 13, isRefreshing: Bool) {
+        self.systemName = systemName
+        self.size = size
+        self.isRefreshing = isRefreshing
+    }
+
+    public var body: some View {
+        Image(systemName: systemName)
+            .font(.system(size: size, weight: .semibold))
+            .rotationEffect(.degrees(angle))
+            .task(id: isRefreshing) {
+                guard isRefreshing else {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        angle = 0
+                    }
+                    return
+                }
+                while !Task.isCancelled && isRefreshing {
+                    angle += 10
+                    if angle >= 360 {
+                        angle -= 360
+                    }
+                    try? await Task.sleep(nanoseconds: 16_000_000)
+                }
+            }
+    }
+}
+

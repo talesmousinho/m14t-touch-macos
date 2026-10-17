@@ -197,14 +197,15 @@ public final class HIDTouchDriver {
         timer.setEventHandler { [weak self] in
             guard let self else { return }
             let trustedNow = AXIsProcessTrusted()
-            self.updateDaemonState()
 
             if trustedNow && !self.isAccessibilityTrusted {
                 self.isAccessibilityTrusted = true
+                self.updateDaemonState()
                 self.log("✅ Accessibility permission granted — pointer & trackpad gestures active!")
                 self.setupCursorAutoReturnTap()
             } else if !trustedNow && self.isAccessibilityTrusted {
                 self.isAccessibilityTrusted = false
+                self.updateDaemonState()
                 self.tearDownCursorAutoReturnTap()
             }
         }

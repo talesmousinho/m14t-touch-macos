@@ -141,6 +141,70 @@ public enum LaunchAgentManager {
         }
     }
 
+    private static let probeLabel = "com.talesfonseca.m14ttouch.probe"
+
+    /// Runs a one-shot launchd job (`m14ttouch --check-permissions`) so `launchd` (PID 1) is the
+    /// responsible process. This queries macOS TCC for the exact `m14ttouch` binary on disk without
+    /// in-process `HIServices` caching and without ever attributing the check to `M14tTouch.app`.
+    public static func probeBinaryAccessibility(helperURL: URL) -> Bool {
+        guard FileManager.default.isExecutableFile(atPath: helperURL.path) else {
+            return false
+        }
+
+        let uid = getuid()
+        let tempDir = FileManager.default.temporaryDirectory
+        let probePlistURL = tempDir.appendingPathComponent("\(probeLabel).\(uid).plist")
+        let probeOutURL = tempDir.appendingPathComponent("\(probeLabel).\(uid).out")
+
+        try? FileManager.default.removeItem(at: probeOutURL)
+
+        let plist: [String: Any] = [
+            "Label": probeLabel,
+            "ProgramArguments": [
+                helperURL.path,
+                "--check-permissions"
+            ],
+            "RunAtLoad": true,
+            "StandardInPath": "/dev/null",
+            "StandardOutPath": probeOutURL.path,
+            "StandardErrorPath": "/dev/null"
+        ]
+
+        guard let plistData = try? PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0),
+              (try? plistData.write(to: probePlistURL, options: .atomic)) != nil else {
+            return DaemonStateStore.load()?.isAccessibilityTrusted ?? false
+        }
+
+        defer {
+            _ = try? runLaunchctl(["bootout", guiDomain, probePlistURL.path], allowFailure: true)
+            try? FileManager.default.removeItem(at: probePlistURL)
+            try? FileManager.default.removeItem(at: probeOutURL)
+        }
+
+        _ = try? runLaunchctl(["bootout", guiDomain, probePlistURL.path], allowFailure: true)
+        _ = try? runLaunchctl(["bootstrap", guiDomain, probePlistURL.path], allowFailure: true)
+
+        for _ in 0..<24 {
+            if let data = try? Data(contentsOf: probeOutURL),
+               !data.isEmpty,
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let accessibility = json["accessibility"] as? Bool {
+                let status = helperStatus()
+                let state = DaemonState(
+                    pid: status.pid ?? 0,
+                    isAccessibilityTrusted: accessibility,
+                    isInputMonitoringTrusted: true,
+                    binaryPath: helperURL.path
+                )
+                DaemonStateStore.save(state)
+                return accessibility
+            }
+            usleep(25_000)
+        }
+
+        return DaemonStateStore.load()?.isAccessibilityTrusted ?? false
+    }
+
     private static var guiDomain: String {
         "gui/\(getuid())"
     }

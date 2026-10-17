@@ -47,6 +47,7 @@ struct RootSplitView: View {
                 isHelperRunning: model.isHelperRunning,
                 isSaving: model.isSaving,
                 saveSuccess: model.saveSuccess,
+                isRefreshingDisplays: model.isRefreshingDisplays,
                 onRefreshDisplays: model.refreshDisplays,
                 onRestartDriver: model.restartHelper,
                 onSave: model.save
@@ -220,6 +221,7 @@ private struct DetailContainerView: View {
     let isHelperRunning: Bool
     let isSaving: Bool
     let saveSuccess: Bool
+    let isRefreshingDisplays: Bool
     let onRefreshDisplays: () -> Void
     let onRestartDriver: () -> Void
     let onSave: () -> Void
@@ -252,6 +254,7 @@ private struct DetailContainerView: View {
                 isHelperRunning: isHelperRunning,
                 isSaving: isSaving,
                 saveSuccess: saveSuccess,
+                isRefreshingDisplays: isRefreshingDisplays,
                 onRefreshDisplays: onRefreshDisplays,
                 onRestartDriver: onRestartDriver,
                 onSave: onSave
@@ -270,6 +273,7 @@ private struct StatusFooterBar: View {
     let isHelperRunning: Bool
     let isSaving: Bool
     let saveSuccess: Bool
+    let isRefreshingDisplays: Bool
     let onRefreshDisplays: () -> Void
     let onRestartDriver: () -> Void
     let onSave: () -> Void
@@ -287,9 +291,18 @@ private struct StatusFooterBar: View {
             Spacer()
 
             GlassActionButton(isProminent: false, action: onRefreshDisplays) {
-                Label("Refresh Displays", systemImage: "arrow.triangle.2.circlepath")
+                Label {
+                    Text("Refresh Displays")
+                } icon: {
+                    SpinningRefreshIcon(
+                        systemName: "arrow.triangle.2.circlepath",
+                        size: 12,
+                        isRefreshing: isRefreshingDisplays
+                    )
+                }
             }
             .controlSize(.regular)
+            .disabled(isRefreshingDisplays)
 
             GlassActionButton(isProminent: false, action: onRestartDriver) {
                 Label("Restart Driver", systemImage: "arrow.clockwise")
