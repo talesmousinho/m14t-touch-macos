@@ -36,6 +36,8 @@ macOS recognizes the M14t video signal via DisplayPort Alt-Mode, but its built-i
    - **3 / 4-Finger Swipe Left / Right**: Switch between macOS **Desktops / Full-Screen Spaces**.
    - **3 / 4-Finger Swipe Up**: **Mission Control**.
    - **3 / 4-Finger Swipe Down**: **App Exposé**.
+5. **Auto-Return Pointer to Main Display**:
+   - When enabled, touching the external display and moving the mouse pointer there will automatically snap the pointer back to the main display (restoring the previous position) as soon as the user touches their trackpad or mouse, eliminating tedious cross-screen cursor dragging.
 
 ---
 
@@ -112,6 +114,8 @@ SMART PENCIL (ACTIVE STYLUS) OPTIONS:
 TOUCH & TRACKPAD OPTIONS:
   --mode select|scroll      1-finger drag mode: 'select' (default, text selection & window drag)
                             or 'scroll' (iPad-style 1-finger scroll, hold-then-drag to select)
+  --auto-return-cursor      Return pointer to main display when trackpad/mouse is used after touch
+  --no-auto-return-cursor   Keep pointer on external display after touch
   --no-natural-scroll       Invert 2-finger scroll direction
   --no-natural-spaces       Invert 3/4-finger Desktop swipe direction
   --no-pinch-zoom           Disable 2-finger pinch-to-zoom

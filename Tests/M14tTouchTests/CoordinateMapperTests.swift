@@ -601,6 +601,18 @@ final class ArgumentParserTests: XCTestCase {
         XCTAssertFalse(config.promptForAccessibility)
     }
 
+    func testAutoReturnCursorFlagsParsed() {
+        guard case .run(let configEnabled) = ArgumentParser.parse(["--auto-return-cursor"]) else {
+            return XCTFail("expected .run")
+        }
+        XCTAssertTrue(configEnabled.returnCursorToMainDisplay)
+
+        guard case .run(let configDisabled) = ArgumentParser.parse(["--no-auto-return-cursor"]) else {
+            return XCTFail("expected .run")
+        }
+        XCTAssertFalse(configDisabled.returnCursorToMainDisplay)
+    }
+
     func testHelpRecognized() {
         guard case .help = ArgumentParser.parse(["--help"]) else {
             return XCTFail("expected .help")
@@ -634,6 +646,7 @@ final class PreferencesStoreTests: XCTestCase {
             debugMode: true,
             dragThreshold: 3.5,
             runAtLogin: true,
+            returnCursorToMainDisplay: true,
             oneFingerMode: .scrollAndHoldToSelect,
             barrelButtonAction: .rightClick,
             secondaryBarrelButtonAction: .undo,
@@ -665,5 +678,30 @@ final class ObservedRangeTests: XCTestCase {
             observed.snapshot(),
             CalibrationData(xMin: 0, xMax: 12000, yMin: 0, yMax: 7000)
         )
+    }
+}
+
+final class CursorAutoReturnTests: XCTestCase {
+
+    func testSyntheticEventUserDataConstant() {
+        XCTAssertEqual(MouseEmitter.syntheticEventUserData, 0x4D313454)
+    }
+
+    func testTouchConfigDefaultIsFalse() {
+        let config = TouchConfig()
+        XCTAssertFalse(config.returnCursorToMainDisplay)
+    }
+
+    func testAppPreferencesDefaultAndCustomValues() {
+        let defaultPrefs = AppPreferences()
+        XCTAssertFalse(defaultPrefs.returnCursorToMainDisplay)
+        XCTAssertFalse(defaultPrefs.touchConfig.returnCursorToMainDisplay)
+
+        let customPrefs = AppPreferences(returnCursorToMainDisplay: true)
+        XCTAssertTrue(customPrefs.returnCursorToMainDisplay)
+        XCTAssertTrue(customPrefs.touchConfig.returnCursorToMainDisplay)
+
+        let converted = AppPreferences(touchConfig: customPrefs.touchConfig)
+        XCTAssertTrue(converted.returnCursorToMainDisplay)
     }
 }

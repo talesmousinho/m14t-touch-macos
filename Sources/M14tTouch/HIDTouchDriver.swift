@@ -64,6 +64,12 @@ public final class HIDTouchDriver {
     private var currentDisplay: DisplayInfo?
     private var observed = ObservedRange()
 
+    // Cursor Auto-Return to Main Display state
+    private var cursorMovedByTouchToExternal = false
+    private var lastMainDisplayPosition: CGPoint?
+    private var eventTap: CFMachPort?
+    private var eventTapRunLoopSource: CFRunLoopSource?
+
     // Timers for stationary long-press right-click and Accessibility permission polling
     private var holdTimer: DispatchSourceTimer?
     private var permissionTimer: DispatchSourceTimer?
@@ -100,6 +106,7 @@ public final class HIDTouchDriver {
         openHIDManager()
         startPermissionMonitor()
         startHoldWatchdog()
+        setupCursorAutoReturnTap()
     }
 
     private func openHIDManager() {
@@ -137,6 +144,7 @@ public final class HIDTouchDriver {
     }
 
     public func stop() {
+        tearDownCursorAutoReturnTap()
         holdTimer?.cancel()
         holdTimer = nil
         permissionTimer?.cancel()
@@ -175,6 +183,7 @@ public final class HIDTouchDriver {
 
         if isAccessibilityTrusted {
             log("✅ Accessibility permission active")
+            setupCursorAutoReturnTap()
         } else {
             log("⏳ Waiting for Accessibility permission in System Settings → Privacy & Security → Accessibility…")
             if config.promptForAccessibility {
@@ -193,8 +202,10 @@ public final class HIDTouchDriver {
             if trustedNow && !self.isAccessibilityTrusted {
                 self.isAccessibilityTrusted = true
                 self.log("✅ Accessibility permission granted — pointer & trackpad gestures active!")
+                self.setupCursorAutoReturnTap()
             } else if !trustedNow && self.isAccessibilityTrusted {
                 self.isAccessibilityTrusted = false
+                self.tearDownCursorAutoReturnTap()
             }
         }
         self.permissionTimer = timer
@@ -456,6 +467,9 @@ public final class HIDTouchDriver {
             )
             let screenPt = mapper.mapNormalized(u: u, v: v)
             isTouchActive = sample.inRange || sample.isTipTouching
+            if isTouchActive {
+                recordTouchMovedCursorToExternal()
+            }
             let actions = gestureEngine.processStylus(sample: sample, screenPoint: screenPt)
             if config.debugMode, !actions.isEmpty {
                 log("✏️  stylus → \(actions)")
@@ -484,6 +498,9 @@ public final class HIDTouchDriver {
         guard !activeMapped.isEmpty || previousActiveFingerCount > 0 else { return }
         previousActiveFingerCount = activeMapped.count
         isTouchActive = !activeMapped.isEmpty
+        if isTouchActive {
+            recordTouchMovedCursorToExternal()
+        }
 
         let actions = gestureEngine.processFrame(contacts: activeMapped, timestamp: now)
         if !actions.isEmpty {
@@ -509,6 +526,153 @@ public final class HIDTouchDriver {
         }
         self.holdTimer = timer
         timer.resume()
+    }
+
+    // MARK: - Cursor Auto-Return to Main Display
+
+    public func updateConfig(_ newConfig: TouchConfig) {
+        self.config = newConfig
+        self.gestureEngine.config = newConfig
+        self.mapper.invertX = newConfig.invertX
+        self.mapper.invertY = newConfig.invertY
+        if newConfig.returnCursorToMainDisplay {
+            setupCursorAutoReturnTap()
+        } else {
+            tearDownCursorAutoReturnTap()
+        }
+    }
+
+    private func setupCursorAutoReturnTap() {
+        guard config.returnCursorToMainDisplay else {
+            tearDownCursorAutoReturnTap()
+            return
+        }
+        guard eventTap == nil else { return }
+        guard isAccessibilityTrusted else { return }
+
+        let mask: CGEventMask = (1 << CGEventType.mouseMoved.rawValue) |
+                                (1 << CGEventType.leftMouseDown.rawValue) |
+                                (1 << CGEventType.rightMouseDown.rawValue) |
+                                (1 << CGEventType.otherMouseDown.rawValue) |
+                                (1 << CGEventType.scrollWheel.rawValue) |
+                                (1 << CGEventType.leftMouseDragged.rawValue) |
+                                (1 << CGEventType.rightMouseDragged.rawValue) |
+                                (1 << CGEventType.otherMouseDragged.rawValue)
+
+        let context = Unmanaged.passUnretained(self).toOpaque()
+
+        let tap = CGEvent.tapCreate(
+            tap: .cghidEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: mask,
+            callback: { (proxy, type, event, refcon) -> Unmanaged<CGEvent>? in
+                guard let refcon = refcon else { return Unmanaged.passUnretained(event) }
+                let driver = Unmanaged<HIDTouchDriver>.fromOpaque(refcon).takeUnretainedValue()
+                return driver.handleGlobalMouseEvent(proxy: proxy, type: type, event: event)
+            },
+            userInfo: context
+        )
+
+        guard let tap = tap else {
+            log("⚠️  Could not create cursor auto-return event tap (check Accessibility permission)")
+            return
+        }
+
+        self.eventTap = tap
+        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        self.eventTapRunLoopSource = source
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .defaultMode)
+        CGEvent.tapEnable(tap: tap, enable: true)
+        log("🔄 Pointer auto-return to main display enabled")
+    }
+
+    private func tearDownCursorAutoReturnTap() {
+        if let tap = eventTap {
+            CGEvent.tapEnable(tap: tap, enable: false)
+            if let source = eventTapRunLoopSource {
+                CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .defaultMode)
+                self.eventTapRunLoopSource = nil
+            }
+            self.eventTap = nil
+        }
+        cursorMovedByTouchToExternal = false
+        lastMainDisplayPosition = nil
+    }
+
+    private func handleGlobalMouseEvent(
+        proxy: CGEventTapProxy,
+        type: CGEventType,
+        event: CGEvent
+    ) -> Unmanaged<CGEvent>? {
+        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            if let tap = eventTap {
+                CGEvent.tapEnable(tap: tap, enable: true)
+            }
+            return Unmanaged.passUnretained(event)
+        }
+
+        // Ignore synthetic events generated by our own driver
+        if event.getIntegerValueField(.eventSourceUserData) == MouseEmitter.syntheticEventUserData {
+            return Unmanaged.passUnretained(event)
+        }
+
+        // If touch or stylus is currently active, allow touch to proceed without interruption
+        guard !isTouchActive else {
+            return Unmanaged.passUnretained(event)
+        }
+
+        // Only return if cursor was specifically moved to external display by touch
+        guard cursorMovedByTouchToExternal else {
+            return Unmanaged.passUnretained(event)
+        }
+
+        let mainID = CGMainDisplayID()
+        let mainBounds = CGDisplayBounds(mainID)
+
+        // If pointer is already on main display, reset flag without jumping
+        if mainBounds.contains(event.location) {
+            cursorMovedByTouchToExternal = false
+            lastMainDisplayPosition = nil
+            return Unmanaged.passUnretained(event)
+        }
+
+        cursorMovedByTouchToExternal = false
+
+        let targetPoint: CGPoint
+        if let saved = lastMainDisplayPosition, mainBounds.contains(saved) {
+            targetPoint = saved
+        } else {
+            targetPoint = CGPoint(x: mainBounds.midX, y: mainBounds.midY)
+        }
+        lastMainDisplayPosition = nil
+
+        if config.debugMode {
+            log("🎯 Auto-returning pointer to main display: \(targetPoint)")
+        }
+
+        CGWarpMouseCursorPosition(targetPoint)
+        event.location = targetPoint
+
+        return Unmanaged.passUnretained(event)
+    }
+
+    private func recordTouchMovedCursorToExternal() {
+        guard config.returnCursorToMainDisplay else { return }
+        guard let current = currentDisplay, !current.isMain else { return }
+
+        if !cursorMovedByTouchToExternal {
+            let mainID = CGMainDisplayID()
+            let mainBounds = CGDisplayBounds(mainID)
+            if let currentPos = currentCursorPosition(), mainBounds.contains(currentPos) {
+                lastMainDisplayPosition = currentPos
+            }
+            cursorMovedByTouchToExternal = true
+        }
+    }
+
+    private func currentCursorPosition() -> CGPoint? {
+        CGEvent(source: nil)?.location
     }
 
     // MARK: - Auto-calibration
