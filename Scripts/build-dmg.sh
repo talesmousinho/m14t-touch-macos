@@ -43,15 +43,15 @@ Option 2: Automated Installer (.pkg)
 
 FIRST-TIME SETUP & PERMISSIONS:
 -------------------------------
-macOS requires two security permissions to read touchscreen HID packets
-and synthesize mouse/trackpad events:
+macOS requires Accessibility permission for the background helper binary
+to synthesize mouse, stylus, and trackpad gestures:
 
 1. Open M14tTouch from Applications.
-2. Click "Request & Verify Permissions".
-3. In macOS System Settings -> Privacy & Security:
-   - Enable "Accessibility" for M14tTouch (or ~/.local/bin/m14ttouch).
-   - Enable "Input Monitoring" for M14tTouch (or ~/.local/bin/m14ttouch).
-4. Click "Enable LaunchAgent" to keep the driver active automatically at login.
+2. In the "Service & Permissions" tab, click "Reveal Binary in Finder"
+   and "Open Accessibility Settings".
+3. Drag the highlighted "m14ttouch" binary into:
+   System Settings -> Privacy & Security -> Accessibility (and ensure it's toggled ON).
+4. In M14tTouch, toggle "Run background helper at login" to keep the driver active.
 
 KEY FEATURES:
 -------------
