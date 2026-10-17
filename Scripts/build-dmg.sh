@@ -49,14 +49,15 @@ INSTALLATION STEPS:
 
 FIRST-TIME SETUP & PERMISSIONS:
 -------------------------------
-macOS requires Accessibility permission for the background helper binary
-to synthesize mouse, stylus, and trackpad gestures:
+macOS requires Accessibility and Input Monitoring permissions for the background
+helper binary to read the USB digitizer and synthesize gestures:
 
 1. Open M14tTouch from /Applications.
-2. In the "Service & Permissions" tab, click "1. Reveal Binary in Finder"
-   and "2. Open Accessibility Settings".
+2. In the "Service & Permissions" tab, click "1. Reveal Binary in Finder",
+   "2. Open Accessibility Settings", and "3. Open Input Monitoring".
 3. Drag the highlighted "m14ttouch" binary into:
-   System Settings -> Privacy & Security -> Accessibility (and toggle it ON).
+   - System Settings -> Privacy & Security -> Accessibility (toggle ON)
+   - System Settings -> Privacy & Security -> Input Monitoring (toggle ON)
 4. In M14tTouch, toggle "Start driver automatically at macOS login" and click Save.
 
 KEY FEATURES:

@@ -30,17 +30,20 @@ public final class SettingsModel: ObservableObject {
     @Published public var isCalibrating = false
 
     @Published public var accessibilityGranted = false
+    @Published public var inputMonitoringGranted = false
     @Published public var isRefreshingPermissions = false
     @Published public var isRefreshingDisplays = false
 
     @Published public var isHelperInstalled = false
     @Published public var isHelperRunning = false
     @Published public var helperPID: Int? = nil
+    @Published public var activeDriverConfig: TouchConfig?
 
     @Published public var selectedTab: SettingsTab = .service
     @Published public var isSaving = false
     @Published public var saveSuccess = false
 
+    private var initialLoadedPreferences: AppPreferences
     private var calibrationProcess: Process?
     private var periodicTimer: Timer?
     private var notificationObserver: NSObjectProtocol?
@@ -53,9 +56,14 @@ public final class SettingsModel: ObservableObject {
     }()
 
     public init() {
-        self.preferences = PreferencesStore.load() ?? AppPreferences()
+        let loadedPrefs = PreferencesStore.load() ?? AppPreferences()
+        self.preferences = loadedPrefs
+        self.initialLoadedPreferences = loadedPrefs
         self.displays = DisplayResolver.all()
-        self.accessibilityGranted = DaemonStateStore.load()?.isAccessibilityTrusted ?? false
+        let daemonState = DaemonStateStore.load()
+        self.accessibilityGranted = daemonState?.isAccessibilityTrusted ?? false
+        self.inputMonitoringGranted = daemonState?.isInputMonitoringTrusted ?? false
+        self.activeDriverConfig = daemonState?.activeConfig
 
         ensureLocalHelperInstalled()
         refreshAll(animated: false)
@@ -91,7 +99,7 @@ public final class SettingsModel: ObservableObject {
     // MARK: - Status & Diagnostics
 
     public var allPermissionsGranted: Bool {
-        accessibilityGranted
+        accessibilityGranted && inputMonitoringGranted
     }
 
     public var m14tDisplay: DisplayInfo? {
@@ -100,6 +108,14 @@ public final class SettingsModel: ObservableObject {
 
     public var isM14tConnected: Bool {
         m14tDisplay != nil
+    }
+
+    public var requiresDriverRestart: Bool {
+        guard isHelperRunning else { return false }
+        if let active = activeDriverConfig {
+            return preferences.requiresDriverRestart(comparedTo: active)
+        }
+        return preferences.requiresDriverRestart(comparedTo: initialLoadedPreferences)
     }
 
     private func ensureLocalHelperInstalled() {
@@ -112,7 +128,8 @@ public final class SettingsModel: ObservableObject {
             .appendingPathComponent(".local/bin", isDirectory: true)
         let localBin = localDir.appendingPathComponent("m14ttouch")
 
-        guard !FileManager.default.isExecutableFile(atPath: localBin.path) else {
+        if FileManager.default.isExecutableFile(atPath: localBin.path),
+           FileManager.default.contentsEqual(atPath: bundled.path, andPath: localBin.path) {
             return
         }
 
@@ -161,9 +178,10 @@ public final class SettingsModel: ObservableObject {
     //    child processes, returning `M14tTouch.app`'s TCC status instead of `m14ttouch`'s status.
     // 3. NEVER rely solely on reading cached `DaemonStateStore.load()` without a live probe, because
     //    macOS `HIServices` caches `AXIsProcessTrusted()` inside long-running processes.
-    // 4. ALWAYS validate permissions via `LaunchAgentManager.probeBinaryAccessibility(helperURL:)`,
-    //    which runs a one-shot `launchd` job (parent PID 1) so `tccd` evaluates the exact on-disk
-    //    `m14ttouch` binary with zero process-level cache staleness.
+    // 4. ALWAYS validate permissions via `LaunchAgentManager.probeBinaryPermissions(helperURL:)` /
+    //    `LaunchAgentManager.probeBinaryAccessibility(helperURL:)`, which runs a one-shot `launchd`
+    //    job (parent PID 1) so `tccd` evaluates the exact on-disk `m14ttouch` binary with zero
+    //    process-level cache staleness.
     public func refreshPermissions() {
         refreshPermissions(animated: true)
     }
@@ -182,14 +200,15 @@ public final class SettingsModel: ObservableObject {
         }
 
         let targetHelperURL = helperURL
-        let wasGranted = accessibilityGranted
+        let wasAccessibilityGranted = accessibilityGranted
+        let wasInputMonitoringGranted = inputMonitoringGranted
         let startTime = Date()
 
         Task.detached(priority: .userInitiated) {
-            let granted = LaunchAgentManager.probeBinaryAccessibility(helperURL: targetHelperURL)
+            let perms = LaunchAgentManager.probeBinaryPermissions(helperURL: targetHelperURL)
             var status = LaunchAgentManager.helperStatus()
 
-            if status.isRunning && granted != wasGranted {
+            if status.isRunning && (perms.accessibility != wasAccessibilityGranted || perms.inputMonitoring != wasInputMonitoringGranted) {
                 try? LaunchAgentManager.restart()
                 status = LaunchAgentManager.helperStatus()
             }
@@ -212,7 +231,8 @@ public final class SettingsModel: ObservableObject {
                 self.isHelperInstalled = finalStatus.isInstalled
                 self.isHelperRunning = finalStatus.isRunning
                 self.helperPID = finalStatus.pid
-                self.accessibilityGranted = granted
+                self.accessibilityGranted = perms.accessibility
+                self.inputMonitoringGranted = perms.inputMonitoring
                 self.isRefreshingPermissions = false
                 self.isPermissionProbeInFlight = false
             }
@@ -224,6 +244,9 @@ public final class SettingsModel: ObservableObject {
         isHelperInstalled = status.isInstalled
         isHelperRunning = status.isRunning
         helperPID = status.pid
+        if status.isRunning, let active = DaemonStateStore.load()?.activeConfig {
+            activeDriverConfig = active
+        }
     }
 
     public func refreshDisplays() {
@@ -272,6 +295,7 @@ public final class SettingsModel: ObservableObject {
 
     public func restartHelper() {
         save()
+        activeDriverConfig = preferences.touchConfig
         do {
             try LaunchAgentManager.restart()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
@@ -291,6 +315,7 @@ public final class SettingsModel: ObservableObject {
 
     public func startHelper() {
         save()
+        activeDriverConfig = preferences.touchConfig
         do {
             try LaunchAgentManager.start(helperURL: helperURL)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
@@ -366,16 +391,26 @@ public final class SettingsModel: ObservableObject {
 
     // MARK: - Permission Handlers
 
-    // CRITICAL: Do NOT call `AXIsProcessTrustedWithOptions` here. Calling it from `M14tTouch.app`
-    // prompts macOS to authorize `M14tTouch.app` instead of the background binary `m14ttouch`.
+    // CRITICAL: Do NOT call `AXIsProcessTrustedWithOptions` or `IOHIDRequestAccess` here. Calling
+    // them from `M14tTouch.app` prompts macOS to authorize `M14tTouch.app` instead of `m14ttouch`.
     public func requestAccessibilityPermission() {
         revealHelperInFinder()
         openAccessibilitySettings()
-        statusMessage = "To authorize: drag 'm14ttouch' from Finder into System Settings → Accessibility"
+        statusMessage = "To authorize: drag 'm14ttouch' from Finder into System Settings → Accessibility (or toggle it off & on)"
     }
 
     public func openAccessibilitySettings() {
         openSystemSettings("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+    }
+
+    public func requestInputMonitoringPermission() {
+        revealHelperInFinder()
+        openInputMonitoringSettings()
+        statusMessage = "To authorize: drag 'm14ttouch' from Finder into System Settings → Input Monitoring (or toggle it off & on)"
+    }
+
+    public func openInputMonitoringSettings() {
+        openSystemSettings("x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")
     }
 
     public func openLogFolder() {

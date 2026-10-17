@@ -105,6 +105,7 @@ mkdir -p "$INSTALL_DIR"
 if [[ -f "$INSTALL_BINARY" ]] && cmp -s "$BUILD_BINARY" "$INSTALL_BINARY"; then
     chmod +x "$INSTALL_BINARY"
 else
+    rm -f "$INSTALL_BINARY"
     cp "$BUILD_BINARY" "$INSTALL_BINARY"
     chmod +x "$INSTALL_BINARY"
     codesign --force --sign - --identifier "com.talesfonseca.m14ttouch" "$INSTALL_BINARY" >/dev/null 2>&1 || true

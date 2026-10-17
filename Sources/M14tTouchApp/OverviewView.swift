@@ -19,11 +19,14 @@ public struct OverviewView: View {
                 PermissionsHubCard(
                     allGranted: model.allPermissionsGranted,
                     accessibilityGranted: model.accessibilityGranted,
+                    inputMonitoringGranted: model.inputMonitoringGranted,
                     isRefreshing: model.isRefreshingPermissions,
                     onRefresh: model.refreshPermissions,
                     onRevealBinary: model.revealHelperInFinder,
                     onRequestAccessibility: model.requestAccessibilityPermission,
-                    onOpenAccessibility: model.openAccessibilitySettings
+                    onOpenAccessibility: model.openAccessibilitySettings,
+                    onRequestInputMonitoring: model.requestInputMonitoringPermission,
+                    onOpenInputMonitoring: model.openInputMonitoringSettings
                 )
 
                 DriverServiceControlCard(
@@ -107,8 +110,17 @@ private struct HardwareBannerCard: View {
                 Spacer()
 
                 GlassActionButton(isProminent: false, action: onRefresh) {
-                    Label("Refresh", systemImage: "arrow.clockwise")
+                    Label {
+                        Text("Refresh")
+                    } icon: {
+                        SpinningRefreshIcon(
+                            systemName: "arrow.clockwise",
+                            size: 12,
+                            isRefreshing: isRefreshing
+                        )
+                    }
                 }
+                .controlSize(.regular)
                 .disabled(isRefreshing)
             }
         }
@@ -120,11 +132,14 @@ private struct HardwareBannerCard: View {
 private struct PermissionsHubCard: View {
     let allGranted: Bool
     let accessibilityGranted: Bool
+    let inputMonitoringGranted: Bool
     let isRefreshing: Bool
     let onRefresh: () -> Void
     let onRevealBinary: () -> Void
     let onRequestAccessibility: () -> Void
     let onOpenAccessibility: () -> Void
+    let onRequestInputMonitoring: () -> Void
+    let onOpenInputMonitoring: () -> Void
 
     var body: some View {
         GlassCard(padding: 20) {
@@ -132,7 +147,7 @@ private struct PermissionsHubCard: View {
                 HStack(alignment: .center) {
                     GlassSectionHeader(
                         title: "Driver Service Permissions",
-                        subtitle: "Required for background binary (~/.local/bin/m14ttouch) to synthesize cursor movements & gestures",
+                        subtitle: "Required for background binary (~/.local/bin/m14ttouch) to read M14t USB HID events and synthesize gestures",
                         icon: "shield.lefthalf.filled",
                         iconColor: allGranted ? AppColor.statusSuccess : AppColor.statusWarning
                     )
@@ -166,11 +181,11 @@ private struct PermissionsHubCard: View {
                                 .foregroundStyle(AppColor.statusWarning)
 
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Add Driver Binary to Accessibility")
+                                Text("Authorize Driver Binary in Accessibility & Input Monitoring")
                                     .font(.system(.subheadline, design: .rounded, weight: .semibold))
                                     .foregroundStyle(.primary)
 
-                                Text("macOS requires the driver binary (**m14ttouch**) to be granted Accessibility permission to synthesize touches and gestures.")
+                                Text("macOS requires the background binary (**~/.local/bin/m14ttouch**) to have **Input Monitoring** (to read M14t USB touch/stylus reports) and **Accessibility** (to synthesize pointer & trackpad gestures). If **m14ttouch** is already listed after an update, toggle it OFF and back ON.")
                                     .font(.system(.caption, design: .default))
                                     .foregroundStyle(Color.primary.opacity(0.85))
                                     .fixedSize(horizontal: false, vertical: true)
@@ -184,7 +199,12 @@ private struct PermissionsHubCard: View {
                             .controlSize(.regular)
 
                             GlassActionButton(isProminent: false, action: onOpenAccessibility) {
-                                Label("2. Open Accessibility Settings", systemImage: "arrow.up.forward.app")
+                                Label("2. Open Accessibility", systemImage: "arrow.up.forward.app")
+                            }
+                            .controlSize(.regular)
+
+                            GlassActionButton(isProminent: false, action: onOpenInputMonitoring) {
+                                Label("3. Open Input Monitoring", systemImage: "arrow.up.forward.app")
                             }
                             .controlSize(.regular)
                         }
@@ -204,7 +224,7 @@ private struct PermissionsHubCard: View {
                             .font(.system(size: 14))
                             .foregroundStyle(AppColor.statusSuccess)
 
-                        Text("Driver binary is authorized. USB touch coordinates are actively synthesized into native gestures.")
+                        Text("Driver binary is authorized for both Accessibility & Input Monitoring. USB touch coordinates are actively synthesized into native gestures.")
                             .font(.system(.caption, design: .default))
                             .foregroundStyle(Color.primary.opacity(0.85))
 
@@ -233,6 +253,16 @@ private struct PermissionsHubCard: View {
                     isGranted: accessibilityGranted,
                     onGrant: onRequestAccessibility,
                     onSettings: onOpenAccessibility
+                )
+
+                PermissionItemRow(
+                    title: "Input Monitoring (USB Touch & Stylus Digitizer)",
+                    subtitle: "Allows ~/.local/bin/m14ttouch to open the M14t composite USB HID digitizer and read multi-touch & Smart Pencil events.",
+                    icon: "keyboard.badge.eye",
+                    iconColor: .blue,
+                    isGranted: inputMonitoringGranted,
+                    onGrant: onRequestInputMonitoring,
+                    onSettings: onOpenInputMonitoring
                 )
             }
         }

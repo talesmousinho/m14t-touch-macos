@@ -59,7 +59,9 @@ struct RootSplitView: View {
         .toolbar {
             AppToolbarItems(
                 allPermissionsGranted: model.allPermissionsGranted,
-                isHelperRunning: model.isHelperRunning
+                isHelperRunning: model.isHelperRunning,
+                requiresDriverRestart: model.requiresDriverRestart,
+                onRestartDriver: model.restartHelper
             )
         }
     }
@@ -317,6 +319,8 @@ private struct StatusFooterBar: View {
 private struct AppToolbarItems: ToolbarContent {
     let allPermissionsGranted: Bool
     let isHelperRunning: Bool
+    let requiresDriverRestart: Bool
+    let onRestartDriver: () -> Void
 
     var body: some ToolbarContent {
         ToolbarItem(placement: .status) {
@@ -331,6 +335,19 @@ private struct AppToolbarItems: ToolbarContent {
                     GlassBadge(text: "Driver Running", icon: "bolt.fill", color: AppColor.statusSuccess)
                 } else {
                     GlassBadge(text: "Driver Stopped", icon: "pause.circle.fill", color: .secondary)
+                }
+
+                if requiresDriverRestart {
+                    Button(action: onRestartDriver) {
+                        GlassBadge(
+                            text: "Requires Driver Restart",
+                            icon: "arrow.clockwise.circle.fill",
+                            color: AppColor.statusWarning
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .contentShape(Capsule())
+                    .help("Driver configuration changed. Click to restart background driver and apply changes.")
                 }
             }
         }

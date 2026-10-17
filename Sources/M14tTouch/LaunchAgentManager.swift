@@ -32,7 +32,10 @@ public enum LaunchAgentManager {
                 .homeDirectoryForCurrentUser
                 .appendingPathComponent("Library/Logs/M14tTouch/helper.err.log")
                 .path,
-            "StandardOutPath": "/dev/null"
+            "StandardOutPath": FileManager.default
+                .homeDirectoryForCurrentUser
+                .appendingPathComponent("Library/Logs/M14tTouch/helper.out.log")
+                .path
         ]
 
         let logDirectory = FileManager.default
@@ -143,12 +146,26 @@ public enum LaunchAgentManager {
 
     private static let probeLabel = "com.talesfonseca.m14ttouch.probe"
 
+    public struct BinaryPermissions: Equatable, Sendable {
+        public let accessibility: Bool
+        public let inputMonitoring: Bool
+
+        public init(accessibility: Bool, inputMonitoring: Bool) {
+            self.accessibility = accessibility
+            self.inputMonitoring = inputMonitoring
+        }
+    }
+
     /// Runs a one-shot launchd job (`m14ttouch --check-permissions`) so `launchd` (PID 1) is the
     /// responsible process. This queries macOS TCC for the exact `m14ttouch` binary on disk without
     /// in-process `HIServices` caching and without ever attributing the check to `M14tTouch.app`.
     public static func probeBinaryAccessibility(helperURL: URL) -> Bool {
+        probeBinaryPermissions(helperURL: helperURL).accessibility
+    }
+
+    public static func probeBinaryPermissions(helperURL: URL) -> BinaryPermissions {
         guard FileManager.default.isExecutableFile(atPath: helperURL.path) else {
-            return false
+            return BinaryPermissions(accessibility: false, inputMonitoring: false)
         }
 
         let uid = getuid()
@@ -172,7 +189,11 @@ public enum LaunchAgentManager {
 
         guard let plistData = try? PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0),
               (try? plistData.write(to: probePlistURL, options: .atomic)) != nil else {
-            return DaemonStateStore.load()?.isAccessibilityTrusted ?? false
+            let cached = DaemonStateStore.load()
+            return BinaryPermissions(
+                accessibility: cached?.isAccessibilityTrusted ?? false,
+                inputMonitoring: cached?.isInputMonitoringTrusted ?? false
+            )
         }
 
         defer {
@@ -189,20 +210,27 @@ public enum LaunchAgentManager {
                !data.isEmpty,
                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let accessibility = json["accessibility"] as? Bool {
+                let inputMonitoring = (json["inputMonitoring"] as? Bool) ?? true
                 let status = helperStatus()
+                let existingState = DaemonStateStore.load()
                 let state = DaemonState(
-                    pid: status.pid ?? 0,
+                    pid: status.pid ?? existingState?.pid ?? 0,
                     isAccessibilityTrusted: accessibility,
-                    isInputMonitoringTrusted: true,
-                    binaryPath: helperURL.path
+                    isInputMonitoringTrusted: inputMonitoring,
+                    binaryPath: helperURL.path,
+                    activeConfig: existingState?.activeConfig
                 )
                 DaemonStateStore.save(state)
-                return accessibility
+                return BinaryPermissions(accessibility: accessibility, inputMonitoring: inputMonitoring)
             }
             usleep(25_000)
         }
 
-        return DaemonStateStore.load()?.isAccessibilityTrusted ?? false
+        let cached = DaemonStateStore.load()
+        return BinaryPermissions(
+            accessibility: cached?.isAccessibilityTrusted ?? false,
+            inputMonitoring: cached?.isInputMonitoringTrusted ?? false
+        )
     }
 
     private static var guiDomain: String {

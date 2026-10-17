@@ -34,7 +34,7 @@ Out of the box, macOS recognizes the **Lenovo ThinkVision M14t** video signal ov
 </div>
 
 * **Instant Hardware Detection:** Automatically identifies your Lenovo ThinkVision M14t via its hardware EDID (`0x30AE:0x62A3`) and displays live viewport & Retina HiDPI telemetry.
-* **Guided Permission Setup:** Grants the background daemon (`~/.local/bin/m14ttouch`) macOS Accessibility access. Built-in shortcuts reveal the binary in Finder and open System Settings in one click.
+* **Guided Permission Setup:** Grants the background daemon (`~/.local/bin/m14ttouch`) macOS Accessibility and Input Monitoring permissions. Built-in shortcuts reveal the binary in Finder and open both System Settings panels in one click.
 * **Persistent LaunchAgent Daemon:** Toggle **Start driver automatically at macOS login** to run silently in the background with zero Dock clutter and sub-millisecond latency.
 * **4-Corner Hardware Calibration:** Built-in interactive calibration learns custom bezel bounds if your panel needs edge-to-edge fine-tuning, with instant factory reset (`12372×6960`).
 
@@ -101,7 +101,7 @@ To run **M14t Touch**, make sure your setup meets these requirements:
 | **Processor** | **Apple Silicon** (`M1` / `M2` / `M3` / `M4`) or **Intel** Mac with Thunderbolt / USB-C |
 | **Display Hardware** | **Lenovo ThinkVision M14t** (Gen 1 or Gen 2 with Wacom `0x2D1F:0x524C` digitizer) |
 | **Connection Cable** | **Full-featured USB-C cable** supporting **DisplayPort Alt-Mode + USB 2.0/3.0 Data**<br>*(⚠️ Charge-only USB-C cables carry power only and will not transmit video or touch data)* |
-| **macOS Permissions** | **Accessibility** permission granted once to the background driver (`~/.local/bin/m14ttouch`) |
+| **macOS Permissions** | **Accessibility** and **Input Monitoring** permissions granted to the background driver (`~/.local/bin/m14ttouch`) |
 
 > [!TIP]
 > **Hardware OSD Tip for Zero Ghosting:** Press the physical menu button on the side of your ThinkVision M14t and set **Overdrive** to **Normal**. Avoid *Extreme* (causes inverse white ghost coronas) or *Off* (increases pixel trail smearing).
@@ -127,12 +127,13 @@ curl -fsSL https://raw.githubusercontent.com/talesmousinho/m14t-touch-macos/main
    ```
 
 ### Step 2 — Authorize the Background Driver (One-Time Setup)
-macOS requires explicit **Accessibility** authorization for the background driver binary (`~/.local/bin/m14ttouch`) to synthesize pointer, stylus, and multi-touch gestures:
+macOS requires explicit **Accessibility** and **Input Monitoring** authorizations for the background driver binary (`~/.local/bin/m14ttouch`). Input Monitoring is required by macOS `IOKit` to read the ThinkVision M14t's composite USB HID digitizer interface, while Accessibility is required to synthesize pointer, stylus, and multi-touch gestures:
 
 1. In **M14t Touch**, open the **Service & Permissions** tab.
-2. Click **1. Reveal Binary in Finder** and **2. Open Accessibility Settings**.
-3. Drag the highlighted `m14ttouch` binary from Finder directly into **System Settings → Privacy & Security → Accessibility**, and ensure its toggle is switched **ON**.
-4. In **M14t Touch**, toggle **Start driver automatically at macOS login** to **ON** and click **Save**.
+2. Click **1. Reveal Binary in Finder** (this selects `m14ttouch` in Finder).
+3. Click **2. Open Accessibility** and drag the highlighted `m14ttouch` binary into **System Settings → Privacy & Security → Accessibility** (switch **ON**).
+4. Click **3. Open Input Monitoring** and drag the highlighted `m14ttouch` binary into **System Settings → Privacy & Security → Input Monitoring** (switch **ON**).
+5. In **M14t Touch**, toggle **Start driver automatically at macOS login** to **ON** and click **Save**.
 
 ---
 

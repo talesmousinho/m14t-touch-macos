@@ -1,6 +1,7 @@
 import ApplicationServices
 import CoreGraphics
 import Foundation
+import IOKit.hid
 import M14tTouchCore
 
 signal(SIGINT, SIG_IGN)
@@ -59,21 +60,40 @@ func printDisplayModes() {
 }
 
 func checkAccessibilityPermission(prompt: Bool) {
-    guard !AXIsProcessTrusted() else { return }
+    let axTrusted = AXIsProcessTrusted()
+    let imTrusted = (IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) == kIOHIDAccessTypeGranted)
 
-    let message = """
-    ⚠️  Accessibility permission is required to synthesize pointer and trackpad gestures.
-        System Settings → Privacy & Security → Accessibility
-        → toggle off & on ~/.local/bin/m14ttouch (or your terminal app).
-        (Driver will stay running and activate automatically as soon as permission is granted.)
+    if !axTrusted {
+        let message = """
+        ⚠️  Accessibility permission is required to synthesize pointer and trackpad gestures.
+            System Settings → Privacy & Security → Accessibility
+            → toggle off & on ~/.local/bin/m14ttouch (or your terminal app).
+            (Driver will stay running and activate automatically as soon as permission is granted.)
 
-    """
-    fputs(message, stderr)
-    fflush(stderr)
+        """
+        fputs(message, stderr)
+        fflush(stderr)
 
-    if prompt {
-        let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
-        _ = AXIsProcessTrustedWithOptions(options)
+        if prompt {
+            let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
+            _ = AXIsProcessTrustedWithOptions(options)
+        }
+    }
+
+    if !imTrusted {
+        let message = """
+        ⚠️  Input Monitoring permission is required to read M14t USB touch & Smart Pencil HID events.
+            System Settings → Privacy & Security → Input Monitoring
+            → toggle off & on ~/.local/bin/m14ttouch (or your terminal app).
+            (Driver will stay running and activate automatically as soon as permission is granted.)
+
+        """
+        fputs(message, stderr)
+        fflush(stderr)
+
+        if prompt {
+            _ = IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
+        }
     }
 }
 
@@ -114,22 +134,27 @@ case .resetCalibration:
 
 case .checkPermissions:
     let ax = AXIsProcessTrusted()
+    let im = (IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) == kIOHIDAccessTypeGranted)
     let binaryPath = CommandLine.arguments.first ?? "m14ttouch"
+    let existingState = DaemonStateStore.load()
     let state = DaemonState(
         pid: Int(ProcessInfo.processInfo.processIdentifier),
         isAccessibilityTrusted: ax,
-        isInputMonitoringTrusted: true,
-        binaryPath: binaryPath
+        isInputMonitoringTrusted: im,
+        binaryPath: binaryPath,
+        activeConfig: existingState?.activeConfig
     )
     DaemonStateStore.save(state)
-    print("{\"accessibility\": \(ax)}")
+    print("{\"accessibility\": \(ax), \"inputMonitoring\": \(im)}")
     fflush(stdout)
     exit(0)
 
 case .requestPermissions:
     let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
     let ax = AXIsProcessTrustedWithOptions(options)
-    print("{\"accessibility\": \(ax)}")
+    let im = IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
+    print("{\"accessibility\": \(ax), \"inputMonitoring\": \(im)}")
+    fflush(stdout)
     exit(0)
 
 case .error(let message):

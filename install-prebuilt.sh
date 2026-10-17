@@ -66,6 +66,7 @@ HELPER_SRC="$APP_DEST/Contents/Resources/m14ttouch"
 if [[ -f "$LOCAL_BIN_DEST" ]] && cmp -s "$HELPER_SRC" "$LOCAL_BIN_DEST"; then
     chmod 755 "$LOCAL_BIN_DEST"
 else
+    rm -f "$LOCAL_BIN_DEST"
     cp -f "$HELPER_SRC" "$LOCAL_BIN_DEST"
     chmod 755 "$LOCAL_BIN_DEST"
 fi
@@ -74,6 +75,8 @@ xattr -cr "$LOCAL_BIN_DEST" 2>/dev/null || true
 echo ""
 echo "✅ Installed M14tTouch.app       -> $APP_DEST"
 echo "✅ Installed m14ttouch driver    -> $LOCAL_BIN_DEST"
+echo ""
+echo "👉 Next: In M14tTouch, grant Accessibility & Input Monitoring in System Settings."
 echo ""
 echo "==> Launching M14tTouch..."
 open "$APP_DEST" || true

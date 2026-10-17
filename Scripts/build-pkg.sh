@@ -49,6 +49,7 @@ if [[ -n "$CONSOLE_USER" && "$CONSOLE_USER" != "root" && "$CONSOLE_USER" != "log
     if [[ -n "$USER_HOME" && -d "$USER_HOME" && -f "$HELPER_SRC" ]]; then
         LOCAL_BIN="$USER_HOME/.local/bin"
         mkdir -p "$LOCAL_BIN"
+        rm -f "$LOCAL_BIN/m14ttouch"
         cp -f "$HELPER_SRC" "$LOCAL_BIN/m14ttouch"
         chmod 755 "$LOCAL_BIN/m14ttouch"
         chown "$CONSOLE_USER:staff" "$USER_HOME/.local" "$LOCAL_BIN" "$LOCAL_BIN/m14ttouch" 2>/dev/null || true

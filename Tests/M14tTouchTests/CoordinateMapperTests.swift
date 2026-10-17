@@ -708,7 +708,7 @@ final class CursorAutoReturnTests: XCTestCase {
 
 final class PermissionIsolationTests: XCTestCase {
 
-    /// Guards against regression where M14tTouchApp directly calls AXIsProcessTrusted(),
+    /// Guards against regression where M14tTouchApp directly calls AXIsProcessTrusted() or IOHIDCheckAccess(),
     /// which causes macOS TCC to register and prompt M14tTouch.app instead of the m14ttouch binary.
     func testSettingsAppNeverCallsAXIsProcessTrustedDirectly() throws {
         let repoRoot = URL(fileURLWithPath: #filePath)
@@ -729,12 +729,117 @@ final class PermissionIsolationTests: XCTestCase {
         )
         XCTAssertFalse(
             codeLines.contains("AXIsProcessTrusted"),
-            "M14tTouchApp must never call AXIsProcessTrusted* directly; use LaunchAgentManager.probeBinaryAccessibility."
+            "M14tTouchApp must never call AXIsProcessTrusted* directly; use LaunchAgentManager.probeBinaryPermissions."
+        )
+        XCTAssertFalse(
+            codeLines.contains("IOHIDCheckAccess") || codeLines.contains("IOHIDRequestAccess"),
+            "M14tTouchApp must never call IOHIDCheckAccess/IOHIDRequestAccess directly; use LaunchAgentManager.probeBinaryPermissions."
         )
         XCTAssertTrue(
+            codeLines.contains("LaunchAgentManager.probeBinaryPermissions") ||
             codeLines.contains("LaunchAgentManager.probeBinaryAccessibility"),
-            "SettingsModel.refreshPermissions must validate the m14ttouch binary via LaunchAgentManager.probeBinaryAccessibility."
+            "SettingsModel.refreshPermissions must validate the m14ttouch binary via LaunchAgentManager.probeBinaryPermissions."
         )
+    }
+}
+
+final class DriverRestartRequirementTests: XCTestCase {
+
+    func testIdenticalConfigsDoNotRequireRestart() {
+        let a = TouchConfig()
+        let b = TouchConfig()
+        XCTAssertFalse(a.requiresRestart(comparedTo: b))
+    }
+
+    func testTransientFlagsDoNotTriggerRestart() {
+        var a = TouchConfig()
+        a.promptForAccessibility = true
+        a.autoCalibrate = false
+
+        var b = TouchConfig()
+        b.promptForAccessibility = false
+        b.autoCalibrate = true
+
+        XCTAssertFalse(a.requiresRestart(comparedTo: b))
+    }
+
+    func testGestureAndStylusChangesRequireRestart() {
+        let base = TouchConfig()
+
+        var modifiedGesture = base
+        modifiedGesture.tapToClick = !base.tapToClick
+        XCTAssertTrue(base.requiresRestart(comparedTo: modifiedGesture))
+
+        var modifiedMode = base
+        modifiedMode.oneFingerMode = .scrollAndHoldToSelect
+        XCTAssertTrue(base.requiresRestart(comparedTo: modifiedMode))
+
+        var modifiedStylus = base
+        modifiedStylus.barrelButtonAction = .undo
+        XCTAssertTrue(base.requiresRestart(comparedTo: modifiedStylus))
+
+        var modifiedScroll = base
+        modifiedScroll.scrollSensitivity = 2.5
+        XCTAssertTrue(base.requiresRestart(comparedTo: modifiedScroll))
+
+        var modifiedDisplay = base
+        modifiedDisplay.displayIndex = 3
+        XCTAssertTrue(base.requiresRestart(comparedTo: modifiedDisplay))
+    }
+
+    func testAppPreferencesRequiresDriverRestart() {
+        let defaultPrefs = AppPreferences()
+        var modified = defaultPrefs
+        modified.naturalScrolling.toggle()
+
+        XCTAssertTrue(modified.requiresDriverRestart(comparedTo: defaultPrefs))
+        XCTAssertTrue(modified.requiresDriverRestart(comparedTo: defaultPrefs.touchConfig))
+
+        // Run at login change alone does not change TouchConfig
+        var loginOnly = defaultPrefs
+        loginOnly.runAtLogin.toggle()
+        XCTAssertFalse(loginOnly.requiresDriverRestart(comparedTo: defaultPrefs))
+    }
+
+    func testDaemonStateActiveConfigRoundTrip() throws {
+        let config = TouchConfig(
+            displayIndex: 2,
+            invertX: true,
+            scrollSensitivity: 1.8,
+            stylusEnabled: true
+        )
+        let state = DaemonState(
+            pid: 12345,
+            isAccessibilityTrusted: true,
+            isInputMonitoringTrusted: true,
+            binaryPath: "/path/to/m14ttouch",
+            activeConfig: config
+        )
+
+        let encoded = try JSONEncoder().encode(state)
+        let decoded = try JSONDecoder().decode(DaemonState.self, from: encoded)
+
+        XCTAssertEqual(decoded.pid, 12345)
+        XCTAssertTrue(decoded.isAccessibilityTrusted)
+        XCTAssertEqual(decoded.activeConfig?.displayIndex, 2)
+        XCTAssertEqual(decoded.activeConfig?.invertX, true)
+        XCTAssertEqual(decoded.activeConfig?.scrollSensitivity, 1.8)
+    }
+
+    func testDaemonStateDecodesWithoutActiveConfigForBackwardCompatibility() throws {
+        let legacyJSON = """
+        {
+            "pid": 54321,
+            "isAccessibilityTrusted": true,
+            "isInputMonitoringTrusted": true,
+            "binaryPath": "/usr/local/bin/m14ttouch",
+            "timestamp": 123456789.0
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(DaemonState.self, from: legacyJSON)
+        XCTAssertEqual(decoded.pid, 54321)
+        XCTAssertNil(decoded.activeConfig)
     }
 }
 

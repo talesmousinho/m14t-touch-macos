@@ -70,10 +70,12 @@ public final class HIDTouchDriver {
     private var eventTap: CFMachPort?
     private var eventTapRunLoopSource: CFRunLoopSource?
 
-    // Timers for stationary long-press right-click and Accessibility permission polling
+    // Timers for stationary long-press right-click and Accessibility/Input Monitoring permission polling
     private var holdTimer: DispatchSourceTimer?
     private var permissionTimer: DispatchSourceTimer?
     private var isAccessibilityTrusted = false
+    private var isInputMonitoringTrusted = false
+    private var isHidOpen = false
 
     public init(config: TouchConfig) {
         self.config = config
@@ -110,6 +112,12 @@ public final class HIDTouchDriver {
     }
 
     private func openHIDManager() {
+        if let existing = self.manager {
+            IOHIDManagerUnscheduleFromRunLoop(existing, CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue)
+            IOHIDManagerClose(existing, IOOptionBits(kIOHIDOptionsTypeNone))
+            self.manager = nil
+        }
+
         let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
         self.manager = manager
 
@@ -136,9 +144,12 @@ public final class HIDTouchDriver {
 
         let result = IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))
         if result == kIOReturnSuccess {
+            isHidOpen = true
             log("✅ Listening for M14t multi-touch & Smart Pencil events…")
         } else {
+            isHidOpen = false
             log("⚠️  IOHIDManagerOpen returned \(String(format: "0x%08X", UInt32(bitPattern: result)))")
+            log("   Grant 'Input Monitoring' in System Settings → Privacy & Security → Input Monitoring.")
         }
         updateDaemonState()
     }
@@ -153,9 +164,11 @@ public final class HIDTouchDriver {
         displayObserver = nil
 
         if let manager {
+            IOHIDManagerUnscheduleFromRunLoop(manager, CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue)
             IOHIDManagerClose(manager, IOOptionBits(kIOHIDOptionsTypeNone))
             self.manager = nil
         }
+        isHidOpen = false
         fingerSlots.removeAll()
     }
 
@@ -163,22 +176,25 @@ public final class HIDTouchDriver {
         Unmanaged<HIDTouchDriver>.fromOpaque(ctx!).takeUnretainedValue()
     }
 
-    // MARK: - Accessibility Permission Monitor
+    // MARK: - Accessibility & Input Monitoring Permission Monitor
 
     private func updateDaemonState() {
-        let trusted = AXIsProcessTrusted()
+        let trustedAX = AXIsProcessTrusted()
+        let trustedIM = (IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) == kIOHIDAccessTypeGranted) && isHidOpen
         let binaryPath = CommandLine.arguments.first ?? "m14ttouch"
         let state = DaemonState(
             pid: Int(ProcessInfo.processInfo.processIdentifier),
-            isAccessibilityTrusted: trusted,
-            isInputMonitoringTrusted: true,
-            binaryPath: binaryPath
+            isAccessibilityTrusted: trustedAX,
+            isInputMonitoringTrusted: trustedIM,
+            binaryPath: binaryPath,
+            activeConfig: config
         )
         DaemonStateStore.save(state)
     }
 
     private func startPermissionMonitor() {
         isAccessibilityTrusted = AXIsProcessTrusted()
+        isInputMonitoringTrusted = (IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) == kIOHIDAccessTypeGranted)
         updateDaemonState()
 
         if isAccessibilityTrusted {
@@ -192,18 +208,37 @@ public final class HIDTouchDriver {
             }
         }
 
+        if isInputMonitoringTrusted && isHidOpen {
+            log("✅ Input Monitoring permission active")
+        } else {
+            log("⏳ Waiting for Input Monitoring permission in System Settings → Privacy & Security → Input Monitoring…")
+            if config.promptForAccessibility {
+                _ = IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
+            }
+        }
+
         let timer = DispatchSource.makeTimerSource(queue: .main)
         timer.schedule(deadline: .now() + .seconds(2), repeating: .seconds(2))
         timer.setEventHandler { [weak self] in
             guard let self else { return }
-            let trustedNow = AXIsProcessTrusted()
+            let trustedAXNow = AXIsProcessTrusted()
+            let trustedIMNow = (IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) == kIOHIDAccessTypeGranted)
 
-            if trustedNow && !self.isAccessibilityTrusted {
+            if trustedIMNow && (!self.isInputMonitoringTrusted || !self.isHidOpen) {
+                self.isInputMonitoringTrusted = true
+                self.log("✅ Input Monitoring permission granted — opening M14t HID digitizer!")
+                self.openHIDManager()
+            } else if !trustedIMNow && self.isInputMonitoringTrusted {
+                self.isInputMonitoringTrusted = false
+                self.updateDaemonState()
+            }
+
+            if trustedAXNow && !self.isAccessibilityTrusted {
                 self.isAccessibilityTrusted = true
                 self.updateDaemonState()
                 self.log("✅ Accessibility permission granted — pointer & trackpad gestures active!")
                 self.setupCursorAutoReturnTap()
-            } else if !trustedNow && self.isAccessibilityTrusted {
+            } else if !trustedAXNow && self.isAccessibilityTrusted {
                 self.isAccessibilityTrusted = false
                 self.updateDaemonState()
                 self.tearDownCursorAutoReturnTap()

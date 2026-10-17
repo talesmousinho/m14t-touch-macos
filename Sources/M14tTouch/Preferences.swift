@@ -192,6 +192,14 @@ public struct AppPreferences: Codable, Equatable, Sendable {
             manualYMax: touchConfig.manualYMax
         )
     }
+
+    public func requiresDriverRestart(comparedTo config: TouchConfig) -> Bool {
+        touchConfig.requiresRestart(comparedTo: config)
+    }
+
+    public func requiresDriverRestart(comparedTo other: AppPreferences) -> Bool {
+        touchConfig.requiresRestart(comparedTo: other.touchConfig)
+    }
 }
 
 public enum PreferencesStore {
@@ -228,19 +236,32 @@ public struct DaemonState: Codable, Sendable, Equatable {
     public var isInputMonitoringTrusted: Bool
     public var binaryPath: String
     public var timestamp: TimeInterval
+    public var activeConfig: TouchConfig?
 
     public init(
         pid: Int,
         isAccessibilityTrusted: Bool,
         isInputMonitoringTrusted: Bool,
         binaryPath: String,
-        timestamp: TimeInterval = Date().timeIntervalSince1970
+        timestamp: TimeInterval = Date().timeIntervalSince1970,
+        activeConfig: TouchConfig? = nil
     ) {
         self.pid = pid
         self.isAccessibilityTrusted = isAccessibilityTrusted
         self.isInputMonitoringTrusted = isInputMonitoringTrusted
         self.binaryPath = binaryPath
         self.timestamp = timestamp
+        self.activeConfig = activeConfig
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        pid = try c.decodeIfPresent(Int.self, forKey: .pid) ?? 0
+        isAccessibilityTrusted = try c.decodeIfPresent(Bool.self, forKey: .isAccessibilityTrusted) ?? false
+        isInputMonitoringTrusted = try c.decodeIfPresent(Bool.self, forKey: .isInputMonitoringTrusted) ?? false
+        binaryPath = try c.decodeIfPresent(String.self, forKey: .binaryPath) ?? ""
+        timestamp = try c.decodeIfPresent(TimeInterval.self, forKey: .timestamp) ?? 0
+        activeConfig = try c.decodeIfPresent(TouchConfig.self, forKey: .activeConfig)
     }
 }
 

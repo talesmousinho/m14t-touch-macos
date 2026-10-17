@@ -98,7 +98,7 @@ public enum DisplayResolutionPreset: String, Codable, CaseIterable, Equatable, S
 }
 
 /// Runtime configuration for the M14t touch & gesture driver.
-public struct TouchConfig: Equatable, Sendable {
+public struct TouchConfig: Codable, Equatable, Sendable {
 
     public var displayIndex: Int
     public var autoDetectM14tDisplay: Bool
@@ -200,7 +200,72 @@ public struct TouchConfig: Equatable, Sendable {
         self.manualYMax = manualYMax
     }
 
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        displayIndex = try c.decodeIfPresent(Int.self, forKey: .displayIndex) ?? 1
+        autoDetectM14tDisplay = try c.decodeIfPresent(Bool.self, forKey: .autoDetectM14tDisplay) ?? true
+        displayResolutionPreset = try c.decodeIfPresent(DisplayResolutionPreset.self, forKey: .displayResolutionPreset) ?? .systemDefault
+        invertX = try c.decodeIfPresent(Bool.self, forKey: .invertX) ?? false
+        invertY = try c.decodeIfPresent(Bool.self, forKey: .invertY) ?? false
+        debugMode = try c.decodeIfPresent(Bool.self, forKey: .debugMode) ?? false
+        promptForAccessibility = try c.decodeIfPresent(Bool.self, forKey: .promptForAccessibility) ?? true
+        dragThreshold = try c.decodeIfPresent(Double.self, forKey: .dragThreshold) ?? 4.0
+        autoCalibrate = try c.decodeIfPresent(Bool.self, forKey: .autoCalibrate) ?? false
+        returnCursorToMainDisplay = try c.decodeIfPresent(Bool.self, forKey: .returnCursorToMainDisplay) ?? false
+        oneFingerMode = try c.decodeIfPresent(OneFingerMode.self, forKey: .oneFingerMode) ?? .selectAndDrag
+        tapToClick = try c.decodeIfPresent(Bool.self, forKey: .tapToClick) ?? true
+        longPressRightClick = try c.decodeIfPresent(Bool.self, forKey: .longPressRightClick) ?? false
+        longPressDuration = try c.decodeIfPresent(Double.self, forKey: .longPressDuration) ?? 0.48
+        twoFingerRightClick = try c.decodeIfPresent(Bool.self, forKey: .twoFingerRightClick) ?? true
+        twoFingerScroll = try c.decodeIfPresent(Bool.self, forKey: .twoFingerScroll) ?? true
+        naturalScrolling = try c.decodeIfPresent(Bool.self, forKey: .naturalScrolling) ?? true
+        scrollSensitivity = try c.decodeIfPresent(Double.self, forKey: .scrollSensitivity) ?? 1.25
+        pinchToZoom = try c.decodeIfPresent(Bool.self, forKey: .pinchToZoom) ?? true
+        threeFingerSwipes = try c.decodeIfPresent(Bool.self, forKey: .threeFingerSwipes) ?? true
+        naturalSpacesSwipe = try c.decodeIfPresent(Bool.self, forKey: .naturalSpacesSwipe) ?? true
+        stylusEnabled = try c.decodeIfPresent(Bool.self, forKey: .stylusEnabled) ?? true
+        barrelButtonAction = try c.decodeIfPresent(StylusButtonAction.self, forKey: .barrelButtonAction) ?? .rightClick
+        secondaryBarrelButtonAction = try c.decodeIfPresent(StylusButtonAction.self, forKey: .secondaryBarrelButtonAction) ?? .eraser
+        palmRejectionWhileStylusInRange = try c.decodeIfPresent(Bool.self, forKey: .palmRejectionWhileStylusInRange) ?? true
+        manualXMin = try c.decodeIfPresent(Double.self, forKey: .manualXMin)
+        manualXMax = try c.decodeIfPresent(Double.self, forKey: .manualXMax)
+        manualYMin = try c.decodeIfPresent(Double.self, forKey: .manualYMin)
+        manualYMax = try c.decodeIfPresent(Double.self, forKey: .manualYMax)
+    }
+
     public var hasManualCalibration: Bool {
         manualXMin != nil || manualXMax != nil || manualYMin != nil || manualYMax != nil
+    }
+
+    /// Evaluates whether driver runtime behavior would differ between two configurations,
+    /// excluding transient one-shot CLI flags like `promptForAccessibility` and `autoCalibrate`.
+    public func requiresRestart(comparedTo other: TouchConfig) -> Bool {
+        displayIndex != other.displayIndex ||
+        autoDetectM14tDisplay != other.autoDetectM14tDisplay ||
+        displayResolutionPreset != other.displayResolutionPreset ||
+        invertX != other.invertX ||
+        invertY != other.invertY ||
+        debugMode != other.debugMode ||
+        dragThreshold != other.dragThreshold ||
+        returnCursorToMainDisplay != other.returnCursorToMainDisplay ||
+        oneFingerMode != other.oneFingerMode ||
+        tapToClick != other.tapToClick ||
+        longPressRightClick != other.longPressRightClick ||
+        longPressDuration != other.longPressDuration ||
+        twoFingerRightClick != other.twoFingerRightClick ||
+        twoFingerScroll != other.twoFingerScroll ||
+        naturalScrolling != other.naturalScrolling ||
+        scrollSensitivity != other.scrollSensitivity ||
+        pinchToZoom != other.pinchToZoom ||
+        threeFingerSwipes != other.threeFingerSwipes ||
+        naturalSpacesSwipe != other.naturalSpacesSwipe ||
+        stylusEnabled != other.stylusEnabled ||
+        barrelButtonAction != other.barrelButtonAction ||
+        secondaryBarrelButtonAction != other.secondaryBarrelButtonAction ||
+        palmRejectionWhileStylusInRange != other.palmRejectionWhileStylusInRange ||
+        manualXMin != other.manualXMin ||
+        manualXMax != other.manualXMax ||
+        manualYMin != other.manualYMin ||
+        manualYMax != other.manualYMax
     }
 }
