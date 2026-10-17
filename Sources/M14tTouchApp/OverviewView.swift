@@ -106,7 +106,7 @@ private struct HardwareBannerCard: View {
                     Label("Refresh", systemImage: "arrow.clockwise")
                         .rotationEffect(.degrees(isSpinning ? 360 : 0))
                 }
-                .controlSize(.small)
+                .controlSize(.regular)
             }
         }
     }
@@ -145,9 +145,7 @@ private struct PermissionsHubCard: View {
 
                     Spacer()
 
-                    if allGranted {
-                        GlassBadge(text: "Daemon Authorized", icon: "checkmark.seal.fill", color: AppColor.statusSuccess)
-                    } else {
+                    if !allGranted {
                         GlassBadge(text: "Action Required", icon: "exclamationmark.triangle.fill", color: AppColor.statusWarning)
                     }
 
@@ -183,12 +181,12 @@ private struct PermissionsHubCard: View {
                             GlassActionButton(isProminent: true, tint: .blue, action: onRevealBinary) {
                                 Label("1. Reveal Binary in Finder", systemImage: "folder.fill")
                             }
-                            .controlSize(.small)
+                            .controlSize(.regular)
 
                             GlassActionButton(isProminent: false, action: onOpenAccessibility) {
                                 Label("2. Open Accessibility Settings", systemImage: "arrow.up.forward.app")
                             }
-                            .controlSize(.small)
+                            .controlSize(.regular)
                         }
                     }
                     .padding(12)
@@ -215,7 +213,7 @@ private struct PermissionsHubCard: View {
                         GlassActionButton(isProminent: false, tint: .blue, action: onRevealBinary) {
                             Label("Reveal Binary in Finder", systemImage: "folder")
                         }
-                        .controlSize(.small)
+                        .controlSize(.regular)
                     }
                     .padding(10)
                     .background(
@@ -281,16 +279,15 @@ private struct PermissionItemRow: View {
                 GlassActionButton(isProminent: false, action: onSettings) {
                     Text("Open Settings")
                 }
-                .controlSize(.small)
+                .controlSize(.regular)
             } else {
                 GlassActionButton(isProminent: true, tint: AppColor.statusWarning, action: onGrant) {
-                    HStack(spacing: 4) {
-                        Text("Grant Access")
-                        Image(systemName: "arrow.up.forward.app")
-                            .font(.system(size: 10))
-                    }
+                    Label(
+                        title: { Text("Grant Access") },
+                        icon: { Image(systemName: "arrow.up.forward.app") }
+                    )
                 }
-                .controlSize(.small)
+                .controlSize(.regular)
             }
         }
         .padding(12)
@@ -371,12 +368,12 @@ private struct DriverServiceControlCard: View {
                         GlassActionButton(isProminent: false, action: onStop) {
                             Label("Stop Driver", systemImage: "stop.fill")
                         }
-                        .controlSize(.small)
+                        .controlSize(.regular)
                     } else {
                         GlassActionButton(isProminent: true, tint: AppColor.statusSuccess, action: onStart) {
                             Label("Start Driver", systemImage: "play.fill")
                         }
-                        .controlSize(.small)
+                        .controlSize(.regular)
                     }
                 }
                 .padding(12)
@@ -401,11 +398,15 @@ private struct DriverServiceControlCard: View {
 
                 HStack(spacing: 12) {
                     GlassActionButton(isProminent: true, tint: saveSuccess ? AppColor.statusSuccess : .accentColor, action: onSave) {
-                        HStack(spacing: 6) {
-                            Image(systemName: saveSuccess ? "checkmark.circle.fill" : "square.and.arrow.down.fill")
-                            Text(saveSuccess ? "Saved!" : (isSaving ? "Saving..." : "Save Configuration"))
-                                .fontWeight(.semibold)
-                        }
+                        Label(
+                            title: {
+                                Text(saveSuccess ? "Saved!" : (isSaving ? "Saving..." : "Save Configuration"))
+                                    .fontWeight(.semibold)
+                            },
+                            icon: {
+                                Image(systemName: saveSuccess ? "checkmark.circle.fill" : "square.and.arrow.down.fill")
+                            }
+                        )
                         .frame(minWidth: 160)
                     }
                     .controlSize(.regular)
@@ -418,11 +419,10 @@ private struct DriverServiceControlCard: View {
 
                     Spacer()
 
-                    Button(action: onOpenLogs) {
+                    GlassActionButton(isProminent: false, action: onOpenLogs) {
                         Label("Logs", systemImage: "doc.text.magnifyingglass")
                     }
-                    .buttonStyle(.borderless)
-                    .controlSize(.small)
+                    .controlSize(.regular)
                     .help("Open driver logs folder in Finder")
                 }
             }
@@ -469,15 +469,18 @@ private struct TouchCalibrationCard: View {
                             GlassActionButton(isProminent: true, tint: .red, action: onStop) {
                                 Label("Stop Calibration", systemImage: "stop.circle.fill")
                             }
+                            .controlSize(.regular)
                         } else {
                             GlassActionButton(isProminent: false, tint: .purple, action: onStart) {
                                 Label("4-Corner Calibrate", systemImage: "viewfinder")
                             }
+                            .controlSize(.regular)
                         }
 
                         GlassActionButton(isProminent: false, action: onReset) {
                             Text("Reset Factory")
                         }
+                        .controlSize(.regular)
                         .help("Restore default Lenovo 12372×6960 calibration bounds")
                     }
                 }

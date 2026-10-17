@@ -93,7 +93,7 @@ private struct DisplayTargetCard: View {
                             GlassActionButton(isProminent: false, action: onRefresh) {
                                 Text("Refresh")
                             }
-                            .controlSize(.small)
+                            .controlSize(.regular)
                         }
                     }
                 }
@@ -165,7 +165,7 @@ private struct ResolutionPresetCard: View {
                     GlassActionButton(isProminent: true, tint: .purple, action: onApply) {
                         Label("Apply Resolution Now", systemImage: "bolt.fill")
                     }
-                    .controlSize(.small)
+                    .controlSize(.regular)
                 }
 
                 Divider()

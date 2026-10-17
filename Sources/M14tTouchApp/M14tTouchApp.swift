@@ -57,12 +57,7 @@ struct RootSplitView: View {
         .toolbar {
             AppToolbarItems(
                 allPermissionsGranted: model.allPermissionsGranted,
-                isHelperRunning: model.isHelperRunning,
-                helperPID: model.helperPID,
-                isSaving: model.isSaving,
-                saveSuccess: model.saveSuccess,
-                onRestart: model.restartHelper,
-                onSave: model.save
+                isHelperRunning: model.isHelperRunning
             )
         }
     }
@@ -262,7 +257,7 @@ private struct DetailContainerView: View {
             )
             .padding(.horizontal, 20)
             .padding(.vertical, 10)
-            .background(Color.primary.opacity(0.03))
+            .background(.ultraThinMaterial)
         }
     }
 }
@@ -280,35 +275,39 @@ private struct StatusFooterBar: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 14) {
-            HStack(spacing: 6) {
+            HStack(spacing: 7) {
                 StatusDot(color: isHelperRunning ? AppColor.statusSuccess : AppColor.statusWarning, isPulsing: isHelperRunning)
                 Text(statusMessage)
-                    .font(.system(.caption, design: .rounded, weight: .medium))
-                    .foregroundStyle(Color.primary.opacity(0.85))
+                    .font(.system(.caption, design: .rounded, weight: .semibold))
+                    .foregroundStyle(Color.primary.opacity(0.92))
                     .lineLimit(1)
             }
 
             Spacer()
 
             GlassActionButton(isProminent: false, action: onRefreshDisplays) {
-                Text("Refresh Displays")
+                Label("Refresh Displays", systemImage: "arrow.triangle.2.circlepath")
             }
-            .controlSize(.small)
+            .controlSize(.regular)
 
             GlassActionButton(isProminent: false, action: onRestartDriver) {
                 Label("Restart Driver", systemImage: "arrow.clockwise")
             }
-            .controlSize(.small)
+            .controlSize(.regular)
 
             GlassActionButton(isProminent: true, tint: saveSuccess ? AppColor.statusSuccess : .accentColor, action: onSave) {
-                HStack(spacing: 5) {
-                    Image(systemName: saveSuccess ? "checkmark" : "square.and.arrow.down")
-                    Text(saveSuccess ? "Saved!" : (isSaving ? "Saving..." : "Save"))
-                        .fontWeight(.semibold)
-                }
+                Label(
+                    title: {
+                        Text(saveSuccess ? "Saved!" : (isSaving ? "Saving..." : "Save"))
+                            .fontWeight(.semibold)
+                    },
+                    icon: {
+                        Image(systemName: saveSuccess ? "checkmark" : "square.and.arrow.down")
+                    }
+                )
                 .frame(minWidth: 70)
             }
-            .controlSize(.small)
+            .controlSize(.regular)
             .keyboardShortcut("s", modifiers: .command)
         }
     }
@@ -319,11 +318,6 @@ private struct StatusFooterBar: View {
 private struct AppToolbarItems: ToolbarContent {
     let allPermissionsGranted: Bool
     let isHelperRunning: Bool
-    let helperPID: Int?
-    let isSaving: Bool
-    let saveSuccess: Bool
-    let onRestart: () -> Void
-    let onSave: () -> Void
 
     var body: some ToolbarContent {
         ToolbarItem(placement: .status) {
@@ -335,26 +329,11 @@ private struct AppToolbarItems: ToolbarContent {
                 }
 
                 if isHelperRunning {
-                    if let helperPID {
-                        GlassBadge(text: "PID \(helperPID)", icon: "bolt.fill", color: AppColor.statusSuccess)
-                    } else {
-                        GlassBadge(text: "Driver Running", icon: "bolt.fill", color: AppColor.statusSuccess)
-                    }
+                    GlassBadge(text: "Driver Running", icon: "bolt.fill", color: AppColor.statusSuccess)
                 } else {
                     GlassBadge(text: "Driver Stopped", icon: "pause.circle.fill", color: .secondary)
                 }
             }
-        }
-
-        ToolbarItem(placement: .primaryAction) {
-            GlassActionButton(isProminent: true, tint: saveSuccess ? AppColor.statusSuccess : .accentColor, action: onSave) {
-                HStack(spacing: 4) {
-                    Image(systemName: saveSuccess ? "checkmark" : "square.and.arrow.down")
-                    Text(saveSuccess ? "Saved" : "Save")
-                }
-            }
-            .controlSize(.small)
-            .help("Save configuration (⌘S)")
         }
     }
 }

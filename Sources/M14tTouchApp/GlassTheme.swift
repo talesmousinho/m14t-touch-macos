@@ -355,6 +355,21 @@ public struct GlassCard<Content: View>: View {
     }
 }
 
+// MARK: - Glass Action Label Style
+
+public struct GlassActionLabelStyle: LabelStyle {
+    public init() {}
+
+    public func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 6) {
+            configuration.icon
+                .imageScale(.medium)
+                .frame(width: 14, height: 14)
+            configuration.title
+        }
+    }
+}
+
 // MARK: - Liquid Glass Action Button
 
 public struct GlassActionButton<LabelContent: View>: View {
@@ -381,20 +396,24 @@ public struct GlassActionButton<LabelContent: View>: View {
                 Button(action: action, label: label)
                     .buttonStyle(.glassProminent)
                     .tint(tint)
+                    .labelStyle(GlassActionLabelStyle())
             } else {
                 Button(action: action, label: label)
                     .buttonStyle(.glass)
                     .tint(tint)
+                    .labelStyle(GlassActionLabelStyle())
             }
         } else {
             if isProminent {
                 Button(action: action, label: label)
                     .buttonStyle(.borderedProminent)
                     .tint(tint ?? .accentColor)
+                    .labelStyle(GlassActionLabelStyle())
             } else {
                 Button(action: action, label: label)
                     .buttonStyle(.bordered)
                     .tint(tint)
+                    .labelStyle(GlassActionLabelStyle())
             }
         }
     }
